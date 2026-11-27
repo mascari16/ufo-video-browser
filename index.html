@@ -156,7 +156,7 @@ textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--ch
   <button class="btn" id="exp">Copy current results as JSON</button>
   <span id="msg" aria-live="polite"></span>
  </details>
- <p class="foot">Data compiled from the PURSUE releases on war.gov/UFO (Releases 01–08, May 8 – Nov 20, 2026; Release 07 had no videos). Capture dates are as precise as the official listings give. Thumbnails and playback stream directly from DVIDS, the Defense Department's video service that war.gov uses; nothing is downloaded. If a thumbnail can't load, a drawn sensor-style stand-in is shown. Official database: <a href="https://www.war.gov/UFO/?type=.vid">war.gov/UFO/?type=.vid</a></p>
+ <p class="foot">Data compiled from the PURSUE releases on war.gov/UFO (Releases 01–08, May 8 – Nov 20, 2026; Release 07 had no videos). Capture dates are as precise as the official listings give. Thumbnails and playback stream directly from DVIDS, the Defense Department's video service that war.gov uses; nothing is downloaded. If a thumbnail can't load, a drawn sensor-style stand-in is shown. New videos are checked for daily and added automatically. Official database: <a href="https://www.war.gov/UFO/?type=.vid">war.gov/UFO/?type=.vid</a></p>
 </main>
 
 <script>
@@ -333,19 +333,20 @@ const short=id=>id.replace('DOW-UAP-','').replace('-UAP-',' ');
 function norm(o,imported){
  const id=o.id.includes('-')?o.id:'DOW-UAP-'+o.id;
  const rel=+o.rel||0, cap=o.cap||'';
- const sr=SRC[id]||(o.dvids&&o.dod&&o.ym?{dv:String(o.dvids),dod:String(o.dod).replace(/\D/g,''),ym:String(o.ym),fr:'1'}:{});
+ const sr=SRC[id]||(o.dvids&&o.dod&&o.ym?{dv:String(o.dvids),dod:String(o.dod).replace(/\D/g,''),ym:String(o.ym),fr:String(o.fr||'1')}:{});
  return{...sr,id,rel,relDate:o.relDate||REL[rel]||'',loc:o.loc||'',region:o.region||regionOf(o.loc||''),cap,capN:capN(cap),prec:precOf(cap),dur:o.dur==null||o.dur===''?null:+o.dur,agency:o.agency||'Not stated',sensor:o.sensor||'EO/IR',title:o.title||id,desc:o.desc||'',yt:o.yt||'',note:o.note||'',imported:!!imported}
 }
 const fromRaw=a=>norm({id:a[0],rel:a[1],loc:a[2],cap:a[3],dur:a[4],agency:a[5],sensor:a[6],title:a[7],desc:a[8],yt:a[9],note:a[10]});
 const fromJson=o=>norm({id:String(o.id||''),rel:o.release,relDate:o.releaseDate,loc:o.location,cap:o.captured,dur:o.duration,agency:o.agency,sensor:o.sensor,title:o.title,desc:o.description,note:o.note,region:o.region},true);
 
 let added=[];try{added=JSON.parse(localStorage.getItem('pursue-added')||'[]').map(fromJson).filter(v=>v.id&&v.relDate)}catch(e){added=[]}
-let V=[];const build=()=>{const ids=new Set(added.map(v=>v.id));V=RAW.map(fromRaw).filter(v=>!ids.has(v.id)).concat(added)};build();
+let auto=[];
+let V=[];const build=()=>{const base=RAW.map(fromRaw),have=new Set(base.map(v=>v.id));const extra=auto.filter(v=>!have.has(v.id));extra.forEach(v=>have.add(v.id));const ids=new Set(added.map(v=>v.id));V=base.concat(extra).filter(v=>!ids.has(v.id)).concat(added)};build();
 
-const DEF={region:'All',q:'',k1:'rel',d1:-1,k2:'cap',d2:-1,rel:'all',agency:'all',sensor:'all',dur:'all',y1:'all',y2:'all',prec:'all',grp:'none'};
-let S={...DEF};try{Object.assign(S,JSON.parse(localStorage.getItem('pursue-state')||'{}'))}catch(e){}
+const DEF={region:'All',q:'',k1:'rel',d1:-1,k2:'cap',d2:-1,rel:'all',agency:'all',sensor:'all',dur:'all',y1:'all',y2:'all',prec:'all',grp:'rel'};
+let S={...DEF};try{Object.assign(S,JSON.parse(localStorage.getItem('pursue-state2')||'{}'))}catch(e){}
 let open=null;
-const save=()=>{try{localStorage.setItem('pursue-state',JSON.stringify(S))}catch(e){}};
+const save=()=>{try{localStorage.setItem('pursue-state2',JSON.stringify(S))}catch(e){}};
 
 const KEYS={rel:'Release date',cap:'Capture date',dur:'Length',id:'File ID',region:'Region'};
 const DIRL={rel:['Oldest first','Newest first'],cap:['Oldest first','Newest first'],dur:['Shortest first','Longest first'],id:['A → Z','Z → A'],region:['A → Z','Z → A']};
@@ -437,7 +438,7 @@ function card(v,latest){
 }
 
 const GK={rel:v=>v.rel,region:v=>v.region,year:v=>yearOf(v)??'Unknown',agency:v=>v.agency,sensor:v=>v.sensor};
-const GL={rel:k=>[`Release ${String(k).padStart(2,'0')}`,REL[k]?fmtRel(REL[k]):''],region:k=>[k,''],year:k=>[k==='Unknown'?'Capture date unknown':`Captured in ${k}`,''],agency:k=>[k,''],sensor:k=>[SENSOR[k]||k,'']};
+const GL={rel:(k,a)=>[`Release ${String(k).padStart(2,'0')}`,REL[k]?fmtRel(REL[k]):a&&a[0].relDate?fmtRel(a[0].relDate):''],region:k=>[k,''],year:k=>[k==='Unknown'?'Capture date unknown':`Captured in ${k}`,''],agency:k=>[k,''],sensor:k=>[SENSOR[k]||k,'']};
 
 let list=[];
 function render(){
@@ -449,7 +450,7 @@ function render(){
  if(S.grp==='none'){feed.innerHTML=`<section class="shelf"><div class="grid">${list.map(v=>card(v,latest)).join('')}</div></section>`}
  else{
   const m=new Map();for(const v of list){const k=GK[S.grp](v);if(!m.has(k))m.set(k,[]);m.get(k).push(v)}
-  feed.innerHTML=[...m].map(([k,a])=>{const[t,sub]=GL[S.grp](k);return`<section class="shelf"><h2>${esc(t)}<small>${esc(sub?sub+' · ':'')}${a.length} video${a.length>1?'s':''}</small></h2><div class="grid">${a.map(v=>card(v,latest)).join('')}</div></section>`}).join('');
+  feed.innerHTML=[...m].map(([k,a])=>{const[t,sub]=GL[S.grp](k,a);return`<section class="shelf"><h2>${esc(t)}<small>${esc(sub?sub+' · ':'')}${a.length} video${a.length>1?'s':''}</small></h2><div class="grid">${a.map(v=>card(v,latest)).join('')}</div></section>`}).join('');
  }
  place(false);
 }
@@ -597,6 +598,8 @@ $('#exp').addEventListener('click',()=>{
 });
 
 controls();render();
+// videos found by the daily GitHub job (extra.json beside this page)
+fetch('extra.json',{cache:'no-store'}).then(r=>r.ok?r.json():[]).then(a=>{if(!Array.isArray(a)||!a.length)return;auto=a.map(o=>{const v=fromJson(o);v.imported=false;return v}).filter(v=>v.id&&v.relDate);build();controls();render();if(open)setOpen(open,false)}).catch(()=>{});
 const h=location.hash.slice(1);if(h){const v=V.find(x=>x.id.toLowerCase()===h);if(v){if(!list.some(x=>x.id===v.id)){S={...DEF};controls();render()}setOpen(v.id)}}
 }
 </script>
