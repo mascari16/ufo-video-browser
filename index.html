@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PURSUE Video Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a calm, dense video library, like a streaming site's home feed for declassified sensor footage
+   IDEA: the YouTube watch grid, with every thumbnail drawn as a sensor feed (reticle, white-hot IR, film grain)
+   PICTURE: the grid itself, with thumbnails made per video from its sensor type, location and ID
+   COLOUR and TYPE: near-black or white ground, neutral greys, thermal orange-red accent; Roboto + Roboto Condensed
+   LAYOUT: sticky search bar, region chip row, filter row, shelves of cards; the info panel opens full width under the clicked row */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#0f0f0f);--ink:light-dark(#0f0f0f,#f1f1f1);--mute:light-dark(#606060,#aaa);--chip:light-dark(#f0f0f0,#272727);--chip2:light-dark(#e3e3e3,#3a3a3a);--line:light-dark(#e5e5e5,#2a2a2a);--panel:light-dark(#f6f6f6,#1c1c1c);--acc:#ff4d2e;--accInk:light-dark(#c4320f,#ff7a5c)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Roboto,system-ui,sans-serif;overflow-x:clip}
+a{color:inherit}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:16px;padding:10px max(3vw,14px)}
+.logo{display:flex;align-items:center;gap:8px;font:700 18px 'Roboto Condensed',sans-serif;letter-spacing:-.2px;white-space:nowrap}
+.logo svg{flex:none}
+.logo small{font:400 12px Roboto;color:var(--mute);display:block;letter-spacing:0}
+.search{flex:1;max-width:620px;margin-inline:auto;display:flex}
+.search input{flex:1;height:42px;border:1px solid var(--chip2);border-radius:21px 0 0 21px;padding:0 16px;background:var(--bg);font-size:16px}
+.search button{width:60px;border:1px solid var(--chip2);border-left:0;border-radius:0 21px 21px 0;background:var(--chip);cursor:pointer}
+.chips{display:flex;gap:10px;overflow-x:auto;padding:4px max(3vw,14px) 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;height:34px;padding:0 13px;border-radius:8px;border:0;background:var(--chip);cursor:pointer;font-weight:500;white-space:nowrap}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.chip span{opacity:.6;font-weight:400;margin-left:4px}
+.bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:12px max(3vw,14px);border-bottom:1px solid var(--line)}
+.bar label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
+.bar select,.bar .dir{height:38px;border-radius:8px;border:1px solid var(--chip2);background:var(--bg);padding:0 8px;font-size:15px;min-height:38px}
+.dir{cursor:pointer;white-space:nowrap}
+.grp{display:flex;gap:6px;align-items:flex-end}
+.btn{height:38px;padding:0 14px;border-radius:19px;border:0;background:var(--chip);cursor:pointer;font-weight:500;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn.pri{background:var(--ink);color:var(--bg)}
+.toggleF{display:none}
+.count{margin-left:auto;color:var(--mute);font-size:14px;align-self:center}
+main{padding:8px max(3vw,14px) 40px}
+.shelf h2{font:700 20px/1.2 Roboto,sans-serif;margin:26px 0 14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.shelf h2 small{font:400 14px Roboto;color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,272px),1fr));gap:26px 16px}
+.card{cursor:pointer;border-radius:12px;outline-offset:4px}
+.th{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111;transition:border-radius .2s}
+.th svg,.th img,.th video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+.th video{z-index:1}
+.pv video,.pv iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.pv .msg{position:absolute;inset:auto 0 0 0;padding:10px 12px;background:rgba(0,0,0,.75);color:#fff;font-size:13px}
+.pv .msg a{color:#ffb4a3}
+.card:hover .th,.card.on .th{border-radius:4px}
+.card.on .th{box-shadow:0 0 0 3px var(--acc)}
+.scan{position:absolute;inset:0;background:linear-gradient(180deg,transparent 0,rgba(255,255,255,.12) 50%,transparent 100%);height:30%;transform:translateY(-110%);pointer-events:none}
+.card:hover .scan{animation:scan 1.6s linear infinite}
+@keyframes scan{to{transform:translateY(400%)}}
+@media (prefers-reduced-motion:reduce){.card:hover .scan{animation:none}.th{transition:none}}
+.dur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.8);color:#fff;font:500 12px Roboto;padding:1px 5px;border-radius:4px}
+.new{position:absolute;left:6px;bottom:6px;background:var(--acc);color:#fff;font:500 12px Roboto;padding:1px 6px;border-radius:4px}
+.meta{display:flex;gap:12px;margin-top:11px}
+.av{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 11px 'Roboto Condensed';letter-spacing:.2px}
+.meta h3{margin:0 0 4px;font:500 16px/1.35 Roboto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.meta p{margin:0;color:var(--mute);font-size:14px;line-height:1.4}
+#panel{grid-column:1/-1;background:var(--panel);border-radius:14px;padding:clamp(14px,2.4vw,24px);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:clamp(16px,2.5vw,32px);animation:drop .22s ease-out}
+@keyframes drop{from{opacity:0;transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){#panel{animation:none}}
+#panel[hidden]{display:none}
+.pv{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000}
+.pv>svg{position:absolute;inset:0;width:100%;height:100%}
+.pv .play{position:absolute;inset:0;display:grid;place-items:center;text-decoration:none}
+.pv .play span{width:68px;height:48px;border-radius:14px;background:rgba(0,0,0,.65);display:grid;place-items:center;transition:background .15s}
+.pv .play:hover span{background:var(--acc)}
+.pinfo h2{margin:0 0 6px;font:700 clamp(19px,2.2vw,24px)/1.2 Roboto;text-wrap:balance}
+.idl{font:700 14px 'Roboto Condensed';color:var(--accInk);margin:0 0 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.copy{border:0;background:var(--chip);border-radius:6px;padding:3px 8px;cursor:pointer;font:500 12px Roboto;color:var(--ink);min-height:28px}
+dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:7px 16px;margin:0 0 14px;font-size:14px}
+dt{color:var(--mute)}dd{margin:0}
+.desc{margin:0 0 10px;font-size:15px}
+.note{margin:0 0 14px;font-size:13px;color:var(--mute);border-left:3px solid var(--chip2);padding-left:10px}
+.acts{display:flex;flex-wrap:wrap;gap:8px}
+.pnav{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.empty{padding:60px 0;text-align:center;color:var(--mute)}
+details.imp{margin-top:40px;border-top:1px solid var(--line);padding-top:18px;font-size:14px;color:var(--mute)}
+details.imp summary{cursor:pointer;color:var(--ink);font-weight:500;min-height:32px}
+textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--chip2);background:var(--bg);padding:10px;font:13px/1.4 ui-monospace,monospace;margin:10px 0}
+.foot{margin-top:18px;font-size:13px;color:var(--mute)}
+#msg{margin-left:8px}
+@media(max-width:760px){
+ #panel{grid-template-columns:minmax(0,1fr)}
+ .logo small{display:none}
+ .toggleF{display:inline-flex}
+ .bar.shut .f{display:none}
+ .bar label{flex:1 1 140px}
+ .bar select{width:100%}
+}
+@media(max-width:520px){.top{gap:10px}.logo b{display:none}.search input{height:40px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 0"/></filter>
+  <filter id="glow" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="2.4"/></filter>
+  <filter id="soft"><feGaussianBlur stdDeviation="1.1"/></filter>
+  <pattern id="scanl" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#000" opacity=".22"/></pattern>
+  <radialGradient id="vig" cx=".5" cy=".5" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".75"/></radialGradient>
+ </defs>
+</svg>
+
+<header>
+ <div class="top">
+  <div class="logo">
+   <svg width="34" height="24" viewBox="0 0 34 24" aria-hidden="true"><rect width="34" height="24" rx="6" fill="#ff4d2e"/><circle cx="17" cy="12" r="5" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M17 3v5M17 16v5M8 12h5M21 12h5" stroke="#fff" stroke-width="1.6"/></svg>
+   <div><b>PURSUE Videos</b><small id="sub"></small></div>
+  </div>
+  <form class="search" id="sform" role="search">
+   <input id="q" type="search" placeholder="Search ID, place, object, agency…" aria-label="Search videos" autocomplete="off">
+   <button aria-label="Search"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l6 6" stroke="currentColor" stroke-width="2"/></svg></button>
+  </form>
+ </div>
+ <div class="chips" id="chips" role="toolbar" aria-label="Filter by region"></div>
+</header>
+
+<div class="bar" id="bar">
+ <button class="btn toggleF" id="tf" aria-expanded="false">Filters &amp; sort</button>
+ <div class="grp f"><label>Sort by<select id="k1"></select></label><button class="dir" id="d1"></button></div>
+ <div class="grp f"><label>Then by<select id="k2"></select></label><button class="dir" id="d2"></button></div>
+ <label class="f">Release<select id="rel"></select></label>
+ <label class="f">Agency / command<select id="agency"></select></label>
+ <label class="f">Sensor<select id="sensor"></select></label>
+ <label class="f">Length<select id="dur">
+  <option value="all">Any length</option><option value="s">Under 30 s</option><option value="m">30 s – 2 min</option><option value="l">2 – 5 min</option><option value="x">Over 5 min</option></select></label>
+ <label class="f">Captured from<select id="y1"></select></label>
+ <label class="f">to<select id="y2"></select></label>
+ <label class="f">Date known to<select id="prec">
+  <option value="all">Any precision</option><option value="d">The exact day</option><option value="m">Month or better</option><option value="y">Year only</option><option value="u">Unknown date</option></select></label>
+ <label class="f">Group into shelves<select id="grp">
+  <option value="none">No grouping</option><option value="rel">By release</option><option value="region">By region</option><option value="year">By capture year</option><option value="agency">By agency</option><option value="sensor">By sensor</option></select></label>
+ <button class="btn f" id="reset">Clear filters</button>
+ <span class="count" id="count" aria-live="polite"></span>
+</div>
+
+<main>
+ <div id="feed"></div>
+ <div id="panel" hidden></div>
+
+ <details class="imp">
+  <summary>Add videos from a newer release</summary>
+  <p>When war.gov posts a new release, paste its videos here as a JSON array and they join the grid in this browser. Fields: <code>id, release, releaseDate (YYYY-MM-DD), location, captured (YYYY, YYYY-MM or YYYY-MM-DD), duration (seconds), agency, sensor, title, description</code>, plus <code>dvids, dod, ym</code> from the DVIDS thumbnail address if you want playback.</p>
+  <textarea id="imp" spellcheck="false" placeholder='[{"id":"DOW-UAP-PR170","release":9,"releaseDate":"2026-12-18","location":"Middle East","captured":"2025-03","duration":42,"agency":"CENTCOM","sensor":"IR","title":"…","description":"…"}]'></textarea>
+  <button class="btn pri" id="impGo">Add videos</button>
+  <button class="btn" id="impClr">Remove added videos</button>
+  <button class="btn" id="exp">Copy current results as JSON</button>
+  <span id="msg" aria-live="polite"></span>
+ </details>
+ <p class="foot">Data compiled from the PURSUE releases on war.gov/UFO (Releases 01–08, May 8 – Nov 20, 2026; Release 07 had no videos). Capture dates are as precise as the official listings give. Thumbnails and playback stream directly from DVIDS, the Defense Department's video service that war.gov uses; nothing is downloaded. If a thumbnail can't load, a drawn sensor-style stand-in is shown. Official database: <a href="https://www.war.gov/UFO/?type=.vid">war.gov/UFO/?type=.vid</a></p>
+</main>
+
+<script>
+{
+const REL={1:'2026-05-08',2:'2026-05-22',3:'2026-06-12',4:'2026-07-10',5:'2026-08-07',6:'2026-09-18',7:'2026-10-23',8:'2026-11-20'};
+// [id, release, location, captured, seconds, agency, sensor, title, description, youtubeId, note]
+const RAW=[
+['PR019',1,'Middle East','2022-05',5,'CENTCOM','IR','Contrast crossing the lower frame','An area of contrast crosses the bottom third of the frame from left to right. Its mission report (D010) lists a possible missile plus four objects described as possible birds.','GQKk-2kMsQQ'],
+['PR021',1,'Iraq','2022-05',10,'CENTCOM','IR','Two objects moving together','Two areas of contrast move together near the center of the frame; the report called them a probable Russian jet.','-6zns6J82Ok'],
+['PR022',1,'Syria','2022-07',14,'CENTCOM','IR','Object crossing the upper right','An object moves right to left across the top right quarter of the frame.','12VVRrN6bpQ'],
+['PR023',1,'Iraq','2022-12',11,'CENTCOM','IR','Contrast exiting the top right corner','An area of contrast moves from bottom left to top right and leaves through the corner.','1IfPiOl-9Sk'],
+['PR026',1,'United Arab Emirates','2023-10',43,'CENTCOM','IR','Contrast leaves frame after tracking stops','An area of contrast drifts out of frame to the left after the sensor stops tracking it.','-83lAPe2nBA'],
+['PR027',1,'United Arab Emirates','2023-10',297,'CENTCOM','IR','Sensor loses and reacquires target','Sensor motion repeatedly loses and reacquires an area of contrast over about five minutes.','','war.gov lists the same file number for PR027 and PR028.'],
+['PR028',1,'Greece','2024-01',66,'EUCOM','Multi','Teardrop object in split EO/SWIR view','A teardrop-shaped object is shown in split electro-optical / short-wave infrared footage before the operator loses it.','JKLJVuMeBrE'],
+['PR029',1,'Gulf of Oman','2024-06',22,'CENTCOM','IR','Inverted teardrop with trailing mass','An inverted teardrop-shaped object with a trailing mass stays centered for about 21 seconds.','vydIZTvCySA','Some coverage lists this as a UAE sighting.'],
+['PR031',1,'Syria','2024-10',5,'CENTCOM','FMV','Multicolored flash at display edge','An indistinct multicolored area crosses the top edge of the display within one second.','mzWhzTg-SDw'],
+['PR032',1,'Syria','2024-10',7,'CENTCOM','FMV','White and red brightness at top edge','An irregular area of white and red brightness appears at the top edge of the display.','T8pWmH9vAMI'],
+['PR033',1,'Syria','2024-10',5,'CENTCOM','FMV','Two orange overlays','Two semi-transparent orange areas overlay the imagery for under two seconds each.','XjpW5M1NVcE'],
+['PR034',1,'Greece','2023-10',177,'EUCOM','IR','Object over water designated, then lost','An object moves back and forth over water, is designated with a reticle, then lost.','kHM4ngWefRM'],
+['PR035',1,'Greece','2023-10',25,'EUCOM','IR','Circular object over the ocean','A small circular object over the ocean becomes indistinguishable as the scene shifts over land.','71qcXxKmZSE'],
+['PR036',1,'Middle East','2020-05',137,'CENTCOM','IR','Target lost after mode switch','An area of contrast is tracked, then lost after the sensor switches imaging modes.','Sy8odDQJqgg'],
+['PR037',1,'Arabian Gulf','2020',10,'CENTCOM','IR','Straight-line climb through frame','An area of contrast moves in a roughly straight line from bottom to top.','fsXs2lda1wg'],
+['PR038',1,'Middle East','2013',106,'CENTCOM','IR','Eight-pointed "star" leaving a trail','A shape resembling an eight-pointed star with arms of alternating length moves across the frame, leaving a trail. The reporter gave no oral or written account.','v4BXbRNuUV4'],
+['PR039',1,'Arabian Gulf','2020',6,'CENTCOM','IR','Faint contrast crossing a corner','A faint area of contrast crosses a corner of the frame from right to left and exits.','TB72pI7LWHs'],
+['PR040',1,'Arabian Gulf','2020',63,'CENTCOM','IR','Brightening object, reporter-circled','An area of contrast brightens; the original reporter added a white circle and label.','566iSl6RfQ4'],
+['PR041',1,'Arabian Gulf','2020',95,'CENTCOM','IR','Sensor pans to keep target centered','The sensor pans left to right to keep an area of contrast centered.','4pqtjE1U4ck'],
+['PR042',1,'Arabian Gulf','2020',293,'CENTCOM','IR','Contrast fades and reappears','An area of contrast fades and reappears while the sensor switches imaging modes.','VN5Z2CvJvK4','war.gov lists the same file number for PR042 and PR043.'],
+['PR043',1,'Djibouti','2025',12,'AFRICOM','IR','Small contrast crossing left to right','A small area of contrast crosses from left to right and exits bottom right.','_rnJ8iNtLsI'],
+['PR044',1,'Arabian Gulf','2020',312,'CENTCOM','IR','Three-minute track, exits top left','The sensor tracks an area of contrast for about three minutes before it exits top left.','Yjac_uLqW5c'],
+['PR045',1,'Southern United States','2020',59,'US Air Force','IR','Contrast growing more distinct','An area of contrast grows more distinct, then exits bottom right. AARO says the growth is likely at least partly due to the platform closing distance.','wDphe1t07bo','Some coverage lists this as a Middle East video.'],
+['PR046',1,'East China Sea','2024',10,'INDOPACOM','IR','Football shape with three projections','A football-shaped object with three radial projections is visible for about nine seconds. The reporter gave no oral or written account.','TdXhEgmOigk'],
+['PR047',1,'Japan','2023',120,'INDOPACOM','IR','Three objects in fixed formation','Three areas of contrast hold a fixed position relative to each other.','mmaOOVm_8Kw'],
+['PR048',1,'Indo-Pacific','2024',99,'INDOPACOM','IR','Contrast held centered 90 seconds','The sensor keeps one area of contrast centered for about a minute and a half.','1O8hcyOHRNI'],
+['PR049',1,'North America','2026',109,'US Army','IR','Two contrasts tracked while zooming','An infrared sensor tracks two areas of contrast while zooming and panning. The reporter gave no oral or written account.','oqi7V-M8WWk'],
+['PR050',2,'Iran','2022-08-26',10,'CENTCOM','EO/IR','Four UAP in formation over water','Short clip of four objects holding a formation over water.','','The release text gives 20 s; the file list gives 10 s.'],
+['PR051',2,'Syria','2021',302,'CENTCOM','EO/IR','"Instant acceleration" near Jordan–Syria border','Titled as showing an object accelerating instantly; reported as MQ-9 Reaper footage with a weapons-quality lock near the Jordan–Syria border.'],
+['PR052',2,'','',496,'Not stated','EO/IR','Formation of unidentified submerged objects','Clip titled as a formation of unidentified submerged objects (USO). No location or date listed.'],
+['PR053',2,'Middle East','2022-10-15',22,'CENTCOM','EO/IR','Cigar-shaped or fast spherical UAP','An object described as cigar-shaped or a fast sphere, seen over a street in the CENTCOM area.'],
+['PR054',2,'Europe','2022',237,'EUCOM','EO/IR','Sphere with erratic movement','A sphere darts in and out of frame while the sensor struggles to keep it.'],
+['PR055',2,'Afghanistan','2020-11-23',47,'CENTCOM','EO/IR','Sphere in and out of clouds','A spherical object appears and disappears in cloud cover over Afghanistan.'],
+['PR056',2,'','2024',212,'Not stated','EO/IR','Sphere pulsing over water','Nearly four minutes tracking a sphere that appears to pulse over water.','','Some coverage places this over Europe.'],
+['PR057A',2,'Yellow Sea','2023',71,'INDOPACOM','EO/IR','Spherical UAP in clouds','Same footage as PR057B, filed under a different title.'],
+['PR057B',2,'East China Sea','2023-01-05',71,'INDOPACOM','EO/IR','Platform observes UAP, East China Sea','Same footage as PR057A. The title says East China Sea; the file list says Yellow Sea.'],
+['PR058',2,'Indo-Pacific','2024',648,'INDOPACOM','EO/IR','Mission UAP, Indo-Pacific','A long INDOPACOM clip of about 11 minutes, with no further detail in the listing.'],
+['PR059',2,'Middle East','2020-06-01',291,'CENTCOM','EO/IR','"NAG" UAP, 1 June 2020','Mission clip labeled NAG showing an unidentified object.'],
+['PR060',2,'Middle East','2021-04-12',290,'CENTCOM','EO/IR','Spherical UAP series — object 2','Object 2 from the 12 April 2021 spherical-object series.'],
+['PR061',2,'Middle East','2021-04-12',286,'CENTCOM','EO/IR','Spherical UAP series — video 0','Clip 0 from the 12 April 2021 spherical-object series.'],
+['PR062',2,'Middle East','2021-04-12',290,'CENTCOM','EO/IR','Spherical UAP series — video 1','Clip 1 from the 12 April 2021 spherical-object series.'],
+['PR063',2,'Middle East','2021-04-12',289,'CENTCOM','EO/IR','Spherical UAP series — video 2','Clip 2 from the 12 April 2021 spherical-object series.'],
+['PR064',2,'Kabul, Afghanistan','2017-07',18,'AFSOC','EO/IR','AFSOC Kabul UAP','Short Air Force Special Operations Command clip of an unidentified object over Kabul.'],
+['PR065',2,'Southeastern U.S. (near Tyndall AFB)','2024-04-24',40,'US Coast Guard','IR','"Tic Tac" IR-hot UAP — 2','Infrared footage from a Coast Guard C-144 of a hot, "Tic Tac"-shaped object.'],
+['PR066',2,'Southeastern U.S. (near Tyndall AFB)','2024-04-24',49,'US Coast Guard','IR','"Tic Tac" IR-hot UAP — 1','Companion clip to PR065 from the same Coast Guard C-144 flight.'],
+['PR067',2,'','2022-03-25',290,'Not stated','EO/IR','Spheres near a submarine','Several spherical objects near a submarine, moving in and out of the water.'],
+['PR068',2,'NORTHCOM area','2023-01-20',63,'NORTHCOM','EO/IR','Footage from a fifth-gen fighter','UAP captured by a fifth-generation aircraft, per intelligence report IIR 1-666 S0151-23.'],
+['PR069',2,'NORTHCOM area','',30,'US Navy','IR','F/A-18 FLIR UAP','Forward-looking infrared footage from an F/A-18.'],
+['PR070',2,'Eglin AFB, Florida','2023-02-13',30,'US Air Force','EO/IR','Eglin AFB aircrew observation','Video tied to an aircrew sighting at Eglin Air Force Base (IIR 1-655 S0301-23).'],
+['PR071',2,'Lake Huron','2023-02-12',47,'USAF Air National Guard','IR','F-16C engagement over Lake Huron','The uploader titled this an F-16C shoot-down of a UAP; AARO\'s description does not confirm that.'],
+['PR072',2,'Karaganda, Kazakhstan','2022-02',17,'Civilian','Handheld','Luminous phenomenon near Karaganda','Commercial cellphone video of a luminous phenomenon. AARO says it was digitally altered before upload.','','Uploaded to the reporting system in April 2023.'],
+['PR073',2,'Columbus, Ohio','2022',89,'Not stated','EO/IR','Several UAP near Columbus, Ohio','Several objects reported around Columbus (IIR 1-655 S0053-23).'],
+['PR074',2,'Middle East','2022-06-13',286,'CENTCOM','EO/IR','Mission HD, 13 June 2022','Mission clip with no further detail listed.'],
+['PR075',2,'East China Sea','2021-06-09',24,'INDOPACOM','EO/IR','Platform observes UAP, East China Sea','Platform observation of a UAP in the East China Sea.'],
+['PR076',2,'Middle East','2021-01-03',297,'CENTCOM','EO/IR','Mission observes UAP, 3 Jan 2021','Mission observation of a UAP.'],
+['PR077',2,'Middle East','2020-11-02',299,'CENTCOM','EO/IR','Observes and tracks UAP (1 of 2)','Part 1 of a pair showing a UAP being observed and tracked.'],
+['PR078',2,'Middle East','2020-11-02',299,'CENTCOM','EO/IR','Observes and tracks UAP (2 of 2)','Part 2 of the same tracking pair. AARO says it is not a duplicate of PR077.'],
+['PR079',2,'Middle East','2020-10-29',241,'CENTCOM','EO/IR','Three fast-moving UAP','Three fast-moving objects observed on one mission.'],
+['PR080',2,'Middle East','2020-10-20',294,'CENTCOM','EO/IR','Mission observes UAP, 20 Oct 2020','Mission observation of a UAP.'],
+['PR081',2,'Africa','2020-10-18',299,'AFRICOM','EO/IR','AFRICOM observes UAP, 18 Oct 2020','Africa Command observation of a UAP.'],
+['PR082',2,'Africa','2020-10-16',297,'AFRICOM','EO/IR','AFRICOM views UAP, 16 Oct 2020','Africa Command view of a UAP.'],
+['PR083',2,'Middle East','2020-10-07',274,'CENTCOM','EO/IR','Mission observes UAP, 7 Oct 2020','Mission observation of a UAP.'],
+['PR084',2,'Middle East','2020-09-17',254,'CENTCOM','EO/IR','Mission observes UAP, 17 Sep 2020','Mission observation of a UAP.'],
+['PR085',2,'Middle East','2020-09-16',284,'CENTCOM','EO/IR','Mission observes UAP, 16 Sep 2020','Mission observation of a UAP.'],
+['PR086',2,'U.S. East Coast','2019-12',34,'NORTHCOM','EO/IR','UAP off the East Coast','Short U.S. military clip of a UAP off the East Coast.'],
+['PR087',2,'Middle East','2020-09-05',294,'CENTCOM','EO/IR','Mission UAP, 5 Sep 2020','Mission footage of a UAP.'],
+['PR088',2,'Middle East','2020-08-31',299,'CENTCOM','EO/IR','Observes UAP, 31 Aug (part 1)','Part 1 of a two-part observation.'],
+['PR089',2,'Middle East','2020-08-31',299,'CENTCOM','EO/IR','Observes UAP, 31 Aug (part 2)','Part 2 of the 31 August observation.'],
+['PR090',2,'Middle East','2020-08-24',298,'CENTCOM','EO/IR','Mission observes UAP, 24 Aug 2020','Mission observation of a UAP.'],
+['PR091',2,'Persian Gulf','2020-08-21',289,'CENTCOM','EO/IR','UAP over the Persian Gulf, 21 Aug','A UAP observed over the Persian Gulf.'],
+['PR092',2,'Middle East','2020-08-08',293,'CENTCOM','EO/IR','UAP observation, 8 Aug 2020','Mission observation of a UAP.'],
+['PR093',2,'Gulf of Arabia','2020-05-05',30,'CENTCOM','EO/IR','Dual UAP, Gulf of Arabia (short)','Two objects over the Gulf of Arabia. Not a duplicate of PR095.'],
+['PR094',2,'Middle East','2020-02-13',300,'CENTCOM','EO/IR','Mission HD, 13 Feb 2020','Mission footage from February 2020.'],
+['PR095',2,'Gulf of Arabia','2020-05-05',289,'CENTCOM','EO/IR','Dual UAP, Gulf of Arabia (long)','Two objects over the Gulf of Arabia. Not a duplicate of PR093.'],
+['PR096',2,'Middle East','2018-07-03',79,'CENTCOM','EO/IR','HH11 UAPs, 3 July 2018','Short U.S. military clip of UAPs.'],
+['PR097',2,'Middle East','2019-09-25',299,'CENTCOM','EO/IR','Hi-res observation, 25 Sep 2019, 2135Z','High-resolution mission observation of a UAP.'],
+['PR098',2,'Persian Gulf','',1056,'CENTCOM','EO/IR','UAP in formation over the Persian Gulf','The longest clip in the collection (about 17½ minutes): objects in formation over the Persian Gulf.'],
+['PR099',2,'Middle East','2019-09-25',291,'CENTCOM','EO/IR','Hi-res observation, 25 Sep 2019, 1715Z','High-resolution mission observation of a UAP.'],
+['FBI-UAP-PR001',3,'Northeastern U.S.','2021-11',163,'FBI','Handheld','"Triangle Orbs": rotating lights','Rotating lights recorded in the northeastern U.S.'],
+['FBI-UAP-PR002',3,'Northeastern U.S.','2022-03',163,'FBI','Handheld','"Red Orb Rotation": two red orbs','Two red orbs recorded in the northeastern U.S.'],
+['FBI-UAP-PR003',3,'Northeastern U.S.','2024-10',265,'FBI','Handheld','"Orbs Over the Pond"','A plasma-like sphere over a pond.'],
+['FBI-UAP-PR004',3,'Northeastern U.S.','2025-07',49,'FBI','Handheld','"Northeastern Orb Sighting"','A bright orb in a backyard.'],
+['FBI-UAP-PR005',3,'Western U.S.','2023-10',54,'FBI','Recreation','Site recreation, witness statement 3-1','FBI recreation of the site for witness statement 3-1 in the October 2023 western U.S. case. Not original footage.'],
+['FBI-UAP-PR006',3,'Western U.S.','2023-10',21,'FBI','Recreation','Site recreation, witness statement 3-2','FBI recreation of the site for witness statement 3-2 in the October 2023 western U.S. case. Not original footage.'],
+['PR024',4,'Middle East','2023',18,'CENTCOM','IR','Infrared clip, Middle East 2023','Short infrared clip listed as an unresolved UAP report.'],
+['PR030',4,'Middle East','2023',10,'CENTCOM','IR','Infrared clip, Middle East 2023','Short infrared clip listed as an unresolved UAP report.'],
+['PR100',4,'Yellow Sea','2023',286,'INDOPACOM','EO/IR','EO/IR clip, Yellow Sea 2023','About five minutes of electro-optical/infrared footage, listed as an unresolved UAP report.'],
+['PR101',4,'South China Sea','2024',105,'INDOPACOM','IR','Infrared clip, South China Sea 2024','Infrared clip listed as an unresolved UAP report.'],
+['PR102',4,'East China Sea','2024',37,'INDOPACOM','IR','Infrared clip, East China Sea 2024','Infrared clip listed as an unresolved UAP report.'],
+['PR103',4,'East China Sea','2024',77,'INDOPACOM','IR','Infrared clip, East China Sea 2024','Infrared clip listed as an unresolved UAP report.'],
+['PR104',4,'Yellow Sea','2025',16,'INDOPACOM','IR','Infrared clip, Yellow Sea 2025','Infrared clip listed as an unresolved UAP report.'],
+['PR105',4,'East China Sea','2025',300,'INDOPACOM','IR','Infrared clip, East China Sea 2025','Five-minute infrared clip listed as an unresolved UAP report.'],
+['PR106',4,'Eastern U.S.','2020',5,'NORTHCOM','IR','Infrared clip, Eastern U.S. 2020','Infrared clip paired with Navy Range Fouler Debrief form DOW-UAP-D089.','','Titled 11 s but plays for about 5 s.'],
+['PR107',4,'Eastern U.S.','2020',24,'NORTHCOM','IR','Infrared clip, Eastern U.S. 2020','Infrared clip listed as an unresolved UAP report.'],
+['PR108',4,'Western U.S.','2020',95,'NORTHCOM','IR','Infrared clip, Western U.S. 2020','Infrared clip listed as an unresolved UAP report.'],
+['PR109',4,'Eastern U.S.','2015',21,'Navy UAP Task Force','IR','Infrared clip, Eastern U.S. 2015','Infrared clip from the Navy UAP Task Force, transferred to AARO in 2022.'],
+['PR110',4,'Eastern U.S.','2020',23,'NORTHCOM','IR','Infrared clip, Eastern U.S. 2020','Infrared clip listed as an unresolved UAP report.'],
+['PR111',4,'Eastern U.S.','2020',60,'NORTHCOM','IR','Infrared clip, Eastern U.S. 2020','Infrared clip listed as an unresolved UAP report.'],
+['PR112',4,'Eastern U.S.','2019',21,'Civilian aircraft','Handheld','Video from a civilian aircraft','Recorded aboard a civilian aircraft over the eastern U.S.; paired with Navy Range Fouler Debrief form DOW-UAP-D090.'],
+['PR113',4,'Western U.S.','1996',176,'Navy UAP Task Force','IR','Infrared clip, Western U.S. 1996','The oldest military sensor clip in the set, from the Navy UAP Task Force files transferred to AARO in 2022.'],
+['PR114',4,'Atlantic Ocean','2016',39,'NORTHCOM','IR','Infrared clip, Atlantic Ocean 2016','Infrared clip over the Atlantic, listed as an unresolved UAP report.'],
+['PR115',4,'Gulf of America','2019',9,'Not stated','IR','Infrared clip, Gulf of America 2019','Infrared clip over the Gulf of America. AARO notes a source near the temperature of its surroundings can blend in or flicker because of auto-gain filters.'],
+['PR116',4,'Atlantic Ocean','2020',32,'NORTHCOM','IR','Infrared clip, Atlantic Ocean 2020','Infrared clip over the Atlantic; paired with Navy Range Fouler Debrief form DOW-UAP-D091.'],
+['PR117',5,'Gulf of Oman','2021-09-08',16,'AC-130J crew','Handheld','AC-130J sensor display, Gulf of Oman (1 of 6)','A phone recording of an AC-130J sensor display during the 8 Sept 2021 Gulf of Oman incident.'],
+['PR118',5,'Gulf of Oman','2021-09-08',30,'AC-130J crew','Handheld','AC-130J sensor display, Gulf of Oman (2 of 6)','A phone recording of an AC-130J sensor display during the 8 Sept 2021 Gulf of Oman incident.'],
+['PR119',5,'Gulf of Oman','2021-09-08',2,'AC-130J crew','Handheld','AC-130J sensor display, Gulf of Oman (3 of 6)','A very short phone recording of an AC-130J sensor display from the same incident.'],
+['PR120',5,'Gulf of Oman','2021-09-08',13,'AC-130J crew','Handheld','AC-130J sensor display, Gulf of Oman (4 of 6)','A phone recording of an AC-130J sensor display during the 8 Sept 2021 Gulf of Oman incident.'],
+['PR121',5,'Gulf of Oman','2021-09-08',34,'AC-130J crew','Handheld','AC-130J sensor display, Gulf of Oman (5 of 6)','A phone recording of an AC-130J sensor display during the 8 Sept 2021 Gulf of Oman incident.'],
+['PR122',5,'Gulf of Oman','2021-09-08',26,'AC-130J crew','Handheld','AC-130J sensor display, Gulf of Oman (6 of 6)','A phone recording of an AC-130J sensor display during the 8 Sept 2021 Gulf of Oman incident.'],
+['PR123',5,'Pacific Ocean','2019',60,'Navy UAP Task Force','Handheld','Navy video, Pacific Ocean 2019 (1 of 5)','Secondary capture of a sensor display. Digitally altered before it was reported, so presented as received.'],
+['PR124',5,'Pacific Ocean','2019',53,'Navy UAP Task Force','Handheld','Navy video, Pacific Ocean 2019 (2 of 5)','Secondary capture of a sensor display. Digitally altered before it was reported, so presented as received.'],
+['PR125',5,'Pacific Ocean','2019',28,'Navy UAP Task Force','Handheld','Navy video, Pacific Ocean 2019 (3 of 5)','Secondary capture of a sensor display. Digitally altered before it was reported, so presented as received.'],
+['PR126',5,'Pacific Ocean','2019',180,'Navy UAP Task Force','Handheld','Navy video, Pacific Ocean 2019 (4 of 5)','Filmed hand-held in low light. Digitally altered before it was reported, so presented as received.'],
+['PR127',5,'Pacific Ocean','2019',120,'Navy UAP Task Force','Handheld','Navy video, Pacific Ocean 2019 (5 of 5)','Filmed hand-held in low light. Digitally altered before it was reported, so presented as received.'],
+['PR134',5,'Middle East','2025',120,'CENTCOM','EO/IR','EO/IR clip, Middle East 2025','Central Command electro-optical/infrared video of an unresolved UAP report.'],
+['PR136',5,'Middle East','2023',30,'CENTCOM','IR','Infrared clip, Middle East 2023','Central Command infrared video of an unresolved UAP report.'],
+['PR142',5,'Middle East','2025',14,'CENTCOM','IR','Infrared clip, Middle East 2025','Central Command infrared video of an unresolved UAP report.'],
+['PR149',5,'Middle East','2023',51,'CENTCOM','IR','Infrared clip, Middle East 2023','Central Command infrared video of an unresolved UAP report.'],
+['FBI-UAP-PR007',5,'Western U.S.','2026',null,'FBI','Thermal','Two slow-moving "black-hot" objects','Thermal video of two slow-moving black-hot areas of contrast, linked to the 2026 western U.S. thermal sightings.','','No duration listed.'],
+['PR133',6,'Middle East','2025',298,'CENTCOM','IR','Infrared clip, Middle East (5 min)','Infrared recording listed as an unresolved UAP report.','','The title says 2024; the listing says 2025.'],
+['PR135',6,'Middle East','2025',60,'CENTCOM','IR','Infrared clip, Middle East 2025','Infrared recording listed as an unresolved UAP report.'],
+['PR140',6,'Middle East','2022',108,'CENTCOM','EO/IR','EO/IR clip, Middle East 2022','Electro-optical/infrared recording listed as an unresolved UAP report.'],
+['PR141',6,'Middle East','2022',156,'CENTCOM','EO/IR','EO/IR clip, Middle East 2022','Electro-optical/infrared recording listed as an unresolved UAP report.'],
+['PR143',6,'Yellow Sea','2023',19,'INDOPACOM','IR','Infrared clip, Yellow Sea 2023','Infrared recording listed as an unresolved UAP report.'],
+['PR144',6,'Yellow Sea','2023',28,'INDOPACOM','IR','Infrared clip, Yellow Sea 2023','Infrared recording listed as an unresolved UAP report.'],
+['PR148',6,'East China Sea','2023',60,'INDOPACOM','IR','Infrared clip, East China Sea 2023','Infrared recording listed as an unresolved UAP report.'],
+['PR150',6,'Yellow Sea','2023',58,'INDOPACOM','IR','Infrared clip, Yellow Sea 2023','Infrared recording listed as an unresolved UAP report.'],
+['PR151',6,'Yellow Sea','2023',50,'INDOPACOM','IR','Infrared clip, Yellow Sea 2023','Infrared recording listed as an unresolved UAP report.'],
+['PR152',6,'Yellow Sea','2023',99,'INDOPACOM','IR','Infrared clip, Yellow Sea 2023','Infrared recording listed as an unresolved UAP report.'],
+['PR159',6,'Tremonton, Utah','1952-07-02',70,'US Navy','Film','The 1952 Tremonton film','16 mm film shot by Navy Chief Warrant Officer Delbert C. Newhouse of a group of bright airborne objects. Project Blue Book could not reach a conclusion because of limited detail and no fixed reference points.','','Unrelated sewing-equipment footage begins at about 55 s.'],
+['LLE-UAP-PR001',6,'Colorado','2023-10',80,'Colorado police','Handheld','Colorado officer video 1','Cellphone video from a Colorado law-enforcement officer, who described a silent object with flashing red, blue and green lights.'],
+['LLE-UAP-PR002',6,'Colorado','2023-10',900,'Colorado police','Handheld','Colorado officer video 2 (15 min)','The longest police video. The officer describes objects on consecutive nights, a beam into a patrol vehicle, and triangular movements.'],
+['LLE-UAP-PR003',6,'Colorado','2023-10',28,'Colorado police','Handheld','Colorado officer video 3','Cellphone video recorded by a Colorado officer.'],
+['LLE-UAP-PR004',6,'Colorado','2023-10',120,'Colorado police','Handheld','Colorado officer video 4: stationary orb','The officer reports an orb about 300 ft up, no aircraft on radar, and the object staying stationary for roughly 15 minutes.','','The title and transcript say 2 January 2024.'],
+['PR166',8,'Middle East','2020',20,'CENTCOM','EO/IR','Sensor footage, Middle East 2020','Sensor footage tracking areas of contrast; the description is stated not to be an analytical judgment.','','Year taken from the title; the official incident date is listed incorrectly.'],
+['PR168',8,'Middle East','2026',54,'CENTCOM','EO/IR','Sensor footage, Middle East 2026 (54 s)','A 54-second electro-optical/infrared video from a U.S. military platform, reported this year. Tracks areas of contrast.','','Year taken from the title; the official incident date is listed incorrectly.'],
+['PR169',8,'Middle East','2023',13,'CENTCOM','EO/IR','Sensor footage, Middle East 2023','Sensor footage tracking areas of contrast; the description is stated not to be an analytical judgment.','','Year taken from the title; the official incident date is listed incorrectly.']
+];
+
+// DVIDS sources: upload folder (YYMM) → "ID=dvidsId:dodNumber[:frame]"
+const SRCS={
+'2605':'PR019=1006056:111688723 PR021=1006059:111688762 PR022=1006060:111688775 PR023=1006062:111688809 PR026=1006063:111688816 PR027=1006067:111688825 PR028=1006073:111688954 PR029=1006074:111688964 PR031=1006076:111688970 PR032=1006078:111688997 PR033=1006079:111689005 PR034=1006080:111689011 PR035=1006082:111689022 PR036=1006083:111689030 PR037=1006087:111689044 PR038=1006088:111689051 PR039=1006089:111689057 PR040=1006093:111689082 PR041=1006094:111689083 PR042=1006097:111689090 PR043=1006159:111689759 PR044=1006104:111689115 PR045=1006105:111689123 PR046=1006106:111689133 PR047=1006107:111689142 PR048=1006110:111689167 PR049=1006111:111689168 PR050=1007706:111719709 PR051=1007707:111719715 PR052=1007708:111719718 PR053=1007709:111719723 PR054=1007711:111719726 PR055=1007713:111719732 PR056=1007718:111719741 PR057A=1007720:111719752 PR057B=1007720:111719752 PR058=1007723:111719800 PR059=1007727:111719809 PR060=1007734:111719823 PR061=1007735:111719828 PR062=1007739:111719847 PR063=1007740:111719850 PR064=1007741:111719852 PR065=1007777:111720692 PR066=1007778:111720693 PR067=1007779:111720696 PR068=1007780:111720698 PR069=1007781:111720700 PR070=1007783:111720720 PR071=1007784:111720731 PR072=1007788:111720752 PR073=1007790:111720765 PR074=1007791:111720775 PR075=1007795:111720809 PR076=1007804:111720857 PR077=1007809:111720884 PR078=1007812:111720890 PR079=1007816:111720899 PR080=1007803:111720856 PR081=1007805:111720858 PR082=1007807:111720861 PR083=1007808:111720883 PR084=1007810:111720886 PR085=1007796:111720822 PR086=1007797:111720827 PR087=1007799:111720830 PR088=1007800:111720843 PR089=1007712:111719730 PR090=1007719:111719746 PR091=1007716:111719739 PR092=1007715:111719736 PR093=1007721:111719795 PR094=1007722:111719799 PR095=1007725:111719804 PR096=1007726:111719807 PR097=1007728:111719813 PR098=1007737:111719833 PR099=1007738:111719835',
+'2606':'FBI-UAP-PR001=1010263:111764142 FBI-UAP-PR002=1010264:111764148 FBI-UAP-PR003=1010267:111764159 FBI-UAP-PR004=1010269:111764177 FBI-UAP-PR005=1010272:111764189 FBI-UAP-PR006=1010276:111764213',
+'2607':'PR024=1014100:111830020 PR030=1014102:111830028 PR100=1014096:111830004 PR101=1014097:111830007 PR102=1014098:111830012 PR103=1014099:111830015 PR104=1014101:111830027 PR105=1014103:111830030 PR106=1014104:111830034 PR107=1014105:111830041 PR108=1014106:111830058 PR109=1014108:111830065 PR110=1014112:111830075 PR111=1014114:111830080 PR112=1014128:111830201 PR113=1014119:111830133 PR114=1014121:111830143 PR115=1014123:111830147 PR116=1014124:111830151',
+'2608':'PR117=1017793:111887401 PR118=1017795:111887407 PR119=1017798:111887421:0 PR120=1017800:111887427 PR121=1017802:111887439 PR122=1017803:111887446 PR123=1017805:111887456 PR124=1017806:111887460 PR125=1017788:111887376 PR126=1017790:111887380 PR127=1017791:111887384 PR134=1017792:111887390 PR136=1017796:111887413 PR142=1017797:111887419 PR149=1017799:111887426 FBI-UAP-PR007=1017801:111887430',
+'2609':'PR133=1023396:111985772 PR135=1023397:111985782 PR140=1023398:111985790 PR141=1023400:111985798 PR143=1023403:111985818 PR144=1023404:111985820 PR148=1023405:111985821 PR150=1023406:111985822 PR151=1023408:111985832 PR152=1023410:111985835 PR159=1023402:111985807 LLE-UAP-PR001=1023409:111985834 LLE-UAP-PR002=1023412:111985844 LLE-UAP-PR003=1023414:111985850 LLE-UAP-PR004=1023416:111985855',
+'2611':'PR166=1030270:112157906 PR168=1030274:112158011 PR169=1030277:112158018'
+};
+const SRC={};for(const[ym,s]of Object.entries(SRCS))for(const t of s.split(' ')){const[k,v]=t.split('=');const[dv,dod,fr='1']=v.split(':');SRC[k.includes('-')?k:'DOW-UAP-'+k]={dv,dod,ym,fr}}
+const thumbURL=v=>`https://d1ldvf68ux039x.cloudfront.net/thumbs/frames/video/${v.ym}/${v.dv}/DOD_${v.dod}.000000${v.fr}/1000w_q95.jpg`;
+const mp4URL=v=>`https://d34w7g4gy10iej.cloudfront.net/video/${v.ym}/DOD_${v.dod}/DOD_${v.dod}.mp4`;
+const dvidsURL=v=>`https://www.dvidshub.net/video/${v.dv}`;
+const SENSOR={'IR':'Infrared','EO/IR':'Electro-optical / infrared','FMV':'Full-motion video','Multi':'Split EO / SWIR','Handheld':'Phone / handheld','Film':'16 mm film','Thermal':'Thermal (black-hot)','Recreation':'Site recreation'};
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const regionOf=l=>!l?'Unspecified':/Middle East|Iraq|Syria|Iran|Emirates|Arabian|Persian|Gulf of Oman|Gulf of Arabia|Afghan|Kabul|Kazakh/.test(l)?'Middle East & Central Asia':/Indo-Pacific|China Sea|Yellow Sea|Japan/.test(l)?'Indo-Pacific':/Greece|Europe/.test(l)?'Europe':/Africa|Djibouti/.test(l)?'Africa':/Pacific Ocean/.test(l)?'Open ocean':'North America';
+const capN=c=>{if(!c)return null;const[y,m=0,d=0]=c.split('-').map(Number);return y*1e4+m*100+d};
+const precOf=c=>!c?'u':c.length>=10?'d':c.length>=7?'m':'y';
+const fmtCap=c=>{if(!c)return'Date unknown';const[y,m,d]=c.split('-');return m?(d?`${MON[m-1]} ${+d}, ${y}`:`${MON[m-1]} ${y}`):y};
+const fmtRel=d=>{const[y,m,dd]=d.split('-');return`${MON[m-1]} ${+dd}, ${y}`};
+const fmtDur=s=>s==null?'—':s>=3600?`${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`:`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const hash=s=>{let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0};
+const rng=s=>{let a=hash(s);return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
+const short=id=>id.replace('DOW-UAP-','').replace('-UAP-',' ');
+
+function norm(o,imported){
+ const id=o.id.includes('-')?o.id:'DOW-UAP-'+o.id;
+ const rel=+o.rel||0, cap=o.cap||'';
+ const sr=SRC[id]||(o.dvids&&o.dod&&o.ym?{dv:String(o.dvids),dod:String(o.dod).replace(/\D/g,''),ym:String(o.ym),fr:'1'}:{});
+ return{...sr,id,rel,relDate:o.relDate||REL[rel]||'',loc:o.loc||'',region:o.region||regionOf(o.loc||''),cap,capN:capN(cap),prec:precOf(cap),dur:o.dur==null||o.dur===''?null:+o.dur,agency:o.agency||'Not stated',sensor:o.sensor||'EO/IR',title:o.title||id,desc:o.desc||'',yt:o.yt||'',note:o.note||'',imported:!!imported}
+}
+const fromRaw=a=>norm({id:a[0],rel:a[1],loc:a[2],cap:a[3],dur:a[4],agency:a[5],sensor:a[6],title:a[7],desc:a[8],yt:a[9],note:a[10]});
+const fromJson=o=>norm({id:String(o.id||''),rel:o.release,relDate:o.releaseDate,loc:o.location,cap:o.captured,dur:o.duration,agency:o.agency,sensor:o.sensor,title:o.title,desc:o.description,note:o.note,region:o.region},true);
+
+let added=[];try{added=JSON.parse(localStorage.getItem('pursue-added')||'[]').map(fromJson).filter(v=>v.id&&v.relDate)}catch(e){added=[]}
+let V=[];const build=()=>{const ids=new Set(added.map(v=>v.id));V=RAW.map(fromRaw).filter(v=>!ids.has(v.id)).concat(added)};build();
+
+const DEF={region:'All',q:'',k1:'rel',d1:-1,k2:'cap',d2:-1,rel:'all',agency:'all',sensor:'all',dur:'all',y1:'all',y2:'all',prec:'all',grp:'none'};
+let S={...DEF};try{Object.assign(S,JSON.parse(localStorage.getItem('pursue-state')||'{}'))}catch(e){}
+let open=null;
+const save=()=>{try{localStorage.setItem('pursue-state',JSON.stringify(S))}catch(e){}};
+
+const KEYS={rel:'Release date',cap:'Capture date',dur:'Length',id:'File ID',region:'Region'};
+const DIRL={rel:['Oldest first','Newest first'],cap:['Oldest first','Newest first'],dur:['Shortest first','Longest first'],id:['A → Z','Z → A'],region:['A → Z','Z → A']};
+const val=(v,k)=>k==='rel'?v.relDate:k==='cap'?v.capN:k==='dur'?v.dur:k==='id'?v.id:v.region;
+function cmp(a,b,k,d){const x=val(a,k),y=val(b,k);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;const r=typeof x==='number'?x-y:x.localeCompare(y,undefined,{numeric:true});return r*d}
+
+const yearOf=v=>v.capN?Math.floor(v.capN/1e4):null;
+function filtered(){
+ const q=S.q.trim().toLowerCase();
+ const y1=S.y1==='all'?-1e9:+S.y1,y2=S.y2==='all'?1e9:+S.y2;
+ return V.filter(v=>{
+  if(S.region!=='All'&&v.region!==S.region)return false;
+  if(S.rel!=='all'&&v.rel!=+S.rel)return false;
+  if(S.agency!=='all'&&v.agency!==S.agency)return false;
+  if(S.sensor!=='all'&&v.sensor!==S.sensor)return false;
+  if(S.dur!=='all'){const d=v.dur;if(d==null)return false;if(S.dur==='s'&&!(d<30))return false;if(S.dur==='m'&&!(d>=30&&d<120))return false;if(S.dur==='l'&&!(d>=120&&d<=300))return false;if(S.dur==='x'&&!(d>300))return false}
+  if(S.y1!=='all'||S.y2!=='all'){const y=yearOf(v);if(y==null||y<y1||y>y2)return false}
+  if(S.prec!=='all'){const p=v.prec;if(S.prec==='d'&&p!=='d')return false;if(S.prec==='m'&&!(p==='d'||p==='m'))return false;if(S.prec==='y'&&p!=='y')return false;if(S.prec==='u'&&p!=='u')return false}
+  if(q){const hay=(v.id+' '+short(v.id)+' '+v.title+' '+v.loc+' '+v.region+' '+v.agency+' '+v.desc+' '+v.note+' '+(SENSOR[v.sensor]||v.sensor)+' '+fmtCap(v.cap)).toLowerCase();if(!q.split(/\s+/).every(w=>hay.includes(w)))return false}
+  return true
+ }).sort((a,b)=>cmp(a,b,S.k1,S.d1)||(S.k2!==S.k1?cmp(a,b,S.k2,S.d2):0)||a.id.localeCompare(b.id,undefined,{numeric:true}))
+}
+
+/* ---------- thumbnails ---------- */
+function thumb(v){
+ const r=rng(v.id),W=320,H=180,s=v.sensor;
+ const sea=/Sea|Gulf|Ocean|water|Lake|Pond|submarine/i.test(v.loc+' '+v.title+' '+v.desc);
+ const R=(a,b)=>a+r()*(b-a);
+ let g='',hud=true,mode={IR:'WHT',['EO/IR']:'EO',FMV:'FMV',Multi:'SWIR',Thermal:'BHT'}[s]||'';
+ const ox=R(120,200),oy=R(60,110);
+ const count=/Four|4 UAP/.test(v.title)?4:/Three|3 /.test(v.title)?3:/Two|dual|pair|Dual/.test(v.title+v.desc)?2:/formation|Several|Multiple|group/i.test(v.title+v.desc)?5:1;
+ const objs=(fill,rmin,rmax,spread)=>{let o='';for(let i=0;i<count;i++){const x=count>1?ox+R(-spread,spread):ox,y=count>1?oy+R(-spread*.5,spread*.5):oy,rr=R(rmin,rmax);o+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(rr*2.6).toFixed(1)}" fill="${fill}" opacity=".45" filter="url(#glow)"/><ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rr.toFixed(1)}" ry="${(rr*R(.6,1)).toFixed(1)}" fill="${fill}"/>`}return o};
+ if(s==='Film'){
+  hud=false;
+  g+=`<rect width="${W}" height="${H}" fill="#9c8564"/><rect width="${W}" height="${H*.7}" fill="#b7a07c"/>`;
+  for(let i=0;i<11;i++)g+=`<circle cx="${R(90,240).toFixed(0)}" cy="${R(40,110).toFixed(0)}" r="${R(1.5,3.2).toFixed(1)}" fill="#fff8e8" filter="url(#soft)"/>`;
+  for(let i=0;i<4;i++){const x=R(10,310);g+=`<line x1="${x}" y1="0" x2="${x+R(-4,4)}" y2="${H}" stroke="#3a2c1a" stroke-width=".6" opacity=".5"/>`}
+  g+=`<rect width="${W}" height="${H}" fill="url(#vig)"/><rect x="6" y="6" width="${W-12}" height="${H-12}" rx="18" fill="none" stroke="#1d150b" stroke-width="10" opacity=".6"/>`;
+ }else if(s==='Handheld'){
+  hud=false;
+  const lit=/red|blue|green|lights|beam/i.test(v.desc);
+  g+=`<defs><linearGradient id="hh${hash(v.id)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#05070b"/><stop offset="1" stop-color="#1a1f2a"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#hh${hash(v.id)})"/>`;
+  if(/display|AC-130J/.test(v.desc)){ // phone filming a screen
+   g+=`<rect x="44" y="22" width="232" height="136" rx="4" fill="#2b2f33" transform="rotate(${R(-5,5).toFixed(1)} 160 90)"/><g transform="rotate(${R(-5,5).toFixed(1)} 160 90)"><rect x="52" y="30" width="216" height="120" fill="#3c3c3c"/><circle cx="${ox}" cy="${oy}" r="3" fill="#f4f4f4"/><path d="M160 80v-14M160 100v14M150 90h-14M170 90h14" stroke="#ddd" stroke-width="1"/></g>`;
+  }else{
+   let sky='';for(let i=0;i<18;i++)sky+=`<circle cx="${R(0,W).toFixed(0)}" cy="${R(0,110).toFixed(0)}" r=".6" fill="#fff" opacity="${R(.2,.7).toFixed(2)}"/>`;
+   g+=sky;
+   const cols=lit?['#ff3b3b','#3b8bff','#3bff7a']:['#fff2c8'];
+   for(let i=0;i<Math.max(1,count===1&&lit?3:count);i++){const c=cols[i%cols.length],x=ox+(i?R(-10,10):0),y=oy+(i?R(-6,6):0);g+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="${c}" opacity=".5" filter="url(#glow)"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#fff"/>`}
+   let p=`M0 ${H} L0 ${H-28}`;for(let x=0;x<=W;x+=16)p+=` L${x} ${(H-24-R(0,22)).toFixed(0)}`;g+=`<path d="${p} L${W} ${H}Z" fill="#000"/>`;
+  }
+ }else if(s==='Recreation'){
+  hud=false;
+  g+=`<defs><linearGradient id="rc${hash(v.id)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c3a5c"/><stop offset=".75" stop-color="#c98a5d"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#rc${hash(v.id)})"/><path d="M0 ${H} L0 130 L60 112 L110 128 L170 100 L230 122 L320 108 L320 ${H}Z" fill="#1a1614"/><circle cx="${ox}" cy="${oy-20}" r="2.5" fill="#fff"/><circle cx="${ox}" cy="${oy-20}" r="8" fill="#fff" opacity=".35" filter="url(#glow)"/>`;
+ }else if(s==='Thermal'){
+  g+=`<rect width="${W}" height="${H}" fill="#b9bcbd"/><rect y="${H*.68}" width="${W}" height="${H*.32}" fill="#9fa3a5"/>`+objs('#101010',3,5,30).replace(/objs/,'');
+  g+=`<circle cx="${ox+40}" cy="${oy+12}" r="3" fill="#151515"/>`;
+ }else{
+  const pal=s==='FMV'?['#8f9aa3','#b5ad98','#6f6656','#2a2a2a']:s==='EO/IR'?['#4b5660','#232a30','#30373c','#f4f6f7']:['#3d3d3d','#191919','#262626','#ffffff'];
+  const gid='bg'+hash(v.id);
+  g+=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal[0]}"/><stop offset="1" stop-color="${pal[1]}"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#${gid})"/>`;
+  const hz=R(110,140);
+  if(sea){g+=`<rect y="${hz.toFixed(0)}" width="${W}" height="${H}" fill="${pal[2]}"/>`;for(let i=0;i<9;i++){const y=hz+6+i*R(3,6);g+=`<line x1="${R(0,120).toFixed(0)}" y1="${y.toFixed(0)}" x2="${R(180,320).toFixed(0)}" y2="${y.toFixed(0)}" stroke="${pal[3]}" stroke-width=".5" opacity="${R(.05,.18).toFixed(2)}"/>`}}
+  else if(r()>.35){let p=`M0 ${H} L0 ${hz.toFixed(0)}`;for(let x=0;x<=W;x+=20)p+=` L${x} ${(hz+R(-14,10)).toFixed(0)}`;g+=`<path d="${p} L${W} ${H}Z" fill="${pal[2]}"/>`;if(r()>.5)for(let i=0;i<5;i++)g+=`<rect x="${R(20,300).toFixed(0)}" y="${(hz+R(18,40)).toFixed(0)}" width="${R(6,18).toFixed(0)}" height="${R(3,8).toFixed(0)}" fill="${pal[3]}" opacity=".12"/>`}
+  if(/cloud/i.test(v.title+v.desc))for(let i=0;i<6;i++)g+=`<ellipse cx="${R(0,W).toFixed(0)}" cy="${R(30,100).toFixed(0)}" rx="${R(30,70).toFixed(0)}" ry="${R(8,16).toFixed(0)}" fill="${pal[3]}" opacity=".12" filter="url(#glow)"/>`;
+  if(/trail|star/i.test(v.desc))g+=`<line x1="${ox-60}" y1="${oy+20}" x2="${ox}" y2="${oy}" stroke="${pal[3]}" stroke-width="2" opacity=".35" filter="url(#soft)"/>`;
+  g+=objs(s==='FMV'?(/orange/i.test(v.desc)?'#ff9a3c':/red/i.test(v.desc)?'#ff6a5a':'#f2f2f2'):pal[3],R(2,3.4),R(3.5,5.5),26);
+  if(s==='Multi')g+=`<rect x="${W/2}" width="${W/2}" height="${H}" fill="#000" opacity=".28"/><line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="#000" stroke-width="3"/>`;
+ }
+ g+=`<rect width="${W}" height="${H}" filter="url(#grain)" opacity="${s==='Film'?.45:.22}" style="mix-blend-mode:overlay"/>`;
+ if(s!=='Film'&&s!=='Recreation')g+=`<rect width="${W}" height="${H}" fill="url(#scanl)"/>`;
+ if(hud){
+  const c=s==='Thermal'?'#111':'#fff';const cx=160,cy=90;
+  g+=`<g stroke="${c}" stroke-width="1.2" fill="none" opacity=".85"><path d="M${cx} ${cy-26}v14M${cx} ${cy+12}v14M${cx-34} ${cy}h20M${cx+14} ${cy}h20"/><path d="M14 30v-16h16M306 30v-16h-16M14 150v16h16M306 150v16h-16"/><path d="M120 168h80" opacity=".5"/>${[0,1,2,3,4,5,6,7,8].map(i=>`<path d="M${124+i*9} 168v-${i%4?3:6}" opacity=".6"/>`).join('')}</g>`;
+  g+=`<g font-family="'Roboto Condensed',sans-serif" font-size="10" font-weight="700" fill="${c}" opacity=".85"><text x="36" y="25">${esc(short(v.id))}</text><text x="284" y="25" text-anchor="end">${mode}</text><text x="36" y="40" font-weight="500" opacity=".7">${esc(v.cap?v.cap.slice(0,4):'----')}</text></g>`;
+ }
+ return`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${g}</svg>`;
+}
+const tcache=new Map();const T=v=>{if(!tcache.has(v.id))tcache.set(v.id,thumb(v));return tcache.get(v.id)};
+
+const avC=a=>`hsl(${hash(a)%360} 42% 40%)`;
+const avT=a=>a==='Not stated'?'?':a.replace(/^US |USAF /,'').replace(/[^A-Za-z0-9 ]/g,'').split(' ').filter(Boolean).map(w=>/^[A-Z0-9]{2,}$/.test(w)?w:w[0]).join('').slice(0,4).toUpperCase();
+const maxRel=()=>Math.max(...V.map(v=>v.rel));
+
+function card(v,latest){
+ return`<article class="card${open===v.id?' on':''}" data-id="${esc(v.id)}" role="button" tabindex="0" aria-expanded="${open===v.id}">
+<div class="th">${v.dv?`<img src="${thumbURL(v)}" alt="" loading="lazy" data-fb="${esc(v.id)}">`:T(v)}<div class="scan"></div><span class="dur">${fmtDur(v.dur)}</span>${v.rel===latest?'<span class="new">Latest release</span>':''}</div>
+<div class="meta"><span class="av" style="background:${avC(v.agency)}">${esc(avT(v.agency))}</span><div><h3>${esc(v.title)}</h3><p>${esc(v.agency)} · ${esc(v.loc||'Location not stated')}</p><p>Captured ${esc(fmtCap(v.cap))} · Released ${esc(v.relDate?fmtRel(v.relDate):'—')}</p></div></div></article>`;
+}
+
+const GK={rel:v=>v.rel,region:v=>v.region,year:v=>yearOf(v)??'Unknown',agency:v=>v.agency,sensor:v=>v.sensor};
+const GL={rel:k=>[`Release ${String(k).padStart(2,'0')}`,REL[k]?fmtRel(REL[k]):''],region:k=>[k,''],year:k=>[k==='Unknown'?'Capture date unknown':`Captured in ${k}`,''],agency:k=>[k,''],sensor:k=>[SENSOR[k]||k,'']};
+
+let list=[];
+function render(){
+ list=filtered();save();
+ $('#count').textContent=`${list.length} of ${V.length} videos`;
+ const latest=maxRel(),feed=$('#feed'),panel=$('#panel');
+ document.body.append(panel);
+ if(!list.length){feed.innerHTML=`<div class="empty"><p>No videos match these filters.</p><button class="btn pri" id="reset2">Clear filters</button></div>`;$('#reset2').onclick=reset;panel.hidden=true;return}
+ if(S.grp==='none'){feed.innerHTML=`<section class="shelf"><div class="grid">${list.map(v=>card(v,latest)).join('')}</div></section>`}
+ else{
+  const m=new Map();for(const v of list){const k=GK[S.grp](v);if(!m.has(k))m.set(k,[]);m.get(k).push(v)}
+  feed.innerHTML=[...m].map(([k,a])=>{const[t,sub]=GL[S.grp](k);return`<section class="shelf"><h2>${esc(t)}<small>${esc(sub?sub+' · ':'')}${a.length} video${a.length>1?'s':''}</small></h2><div class="grid">${a.map(v=>card(v,latest)).join('')}</div></section>`}).join('');
+ }
+ place(false);
+}
+
+function place(scroll){
+ const p=$('#panel');
+ if(!open){p.hidden=true;return}
+ const c=document.querySelector(`.card[data-id="${CSS.escape(open)}"]`);
+ if(!c){p.hidden=true;return}
+ const grid=c.parentElement,cards=[...grid.querySelectorAll(':scope>.card')],cols=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length||1;
+ const i=cards.indexOf(c),end=Math.min(cards.length-1,Math.floor(i/cols)*cols+cols-1);
+ if(cards[end].nextElementSibling!==p)cards[end].after(p);
+ p.hidden=false;
+ if(scroll)requestAnimationFrame(()=>p.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth',block:'nearest'}));
+}
+
+function fillPanel(v){
+ const idx=list.findIndex(x=>x.id===v.id),rel=String(v.rel).padStart(2,'0');
+ const yt=v.yt?`https://www.youtube.com/watch?v=${encodeURIComponent(v.yt)}`:'';
+ const watch=v.dv?dvidsURL(v):yt||'https://www.war.gov/UFO/?type=.vid';
+ const player=v.dv?`<video id="pvid" controls playsinline preload="metadata" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`:`${T(v)}<a class="play" href="${watch}" target="_blank" rel="noopener" aria-label="Watch ${esc(short(v.id))}"><span><svg width="22" height="22" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z" fill="#fff"/></svg></span></a><span class="dur">${fmtDur(v.dur)}</span>`;
+ $('#panel').innerHTML=`<div class="pv" id="pv">${player}</div>
+<div class="pinfo">
+<h2>${esc(v.title)}</h2>
+<p class="idl">${esc(v.id)} <button class="copy" data-copy="${esc(v.id)}">Copy ID</button></p>
+<p class="desc">${esc(v.desc)}</p>
+${v.note?`<p class="note">${esc(v.note)}</p>`:''}
+<dl>
+<dt>Captured</dt><dd>${esc(fmtCap(v.cap))}${v.prec==='y'?' (year only)':v.prec==='m'?' (month only)':''}</dd>
+<dt>Released</dt><dd>${esc(v.relDate?fmtRel(v.relDate):'—')} · Release ${rel}</dd>
+<dt>Location</dt><dd>${esc(v.loc||'Not stated')}</dd>
+<dt>Region</dt><dd>${esc(v.region)}</dd>
+<dt>Agency</dt><dd>${esc(v.agency)}</dd>
+<dt>Sensor</dt><dd>${esc(SENSOR[v.sensor]||v.sensor)}</dd>
+<dt>Length</dt><dd>${v.dur==null?'Not listed':esc(fmtDur(v.dur))+` (${v.dur} s)`}</dd>
+</dl>
+<div class="acts">
+${v.dv?`<a class="btn" href="${dvidsURL(v)}" target="_blank" rel="noopener">Open on DVIDS</a><a class="btn" href="${mp4URL(v)}" target="_blank" rel="noopener">Video file (MP4)</a>`:''}
+${yt?`<a class="btn" href="${yt}" target="_blank" rel="noopener">YouTube</a>`:''}
+${v.dv?'':`<a class="btn pri" href="https://www.war.gov/UFO/?type=.vid" target="_blank" rel="noopener">Find it on war.gov</a>`}
+${REL[v.rel]?`<a class="btn" href="https://www.war.gov/UFO/release/${rel}/" target="_blank" rel="noopener">Release ${rel} page</a>`:''}
+</div>
+<div class="pnav"><button class="btn" data-go="-1" ${idx<=0?'disabled':''}>‹ Previous</button><button class="btn" data-go="1" ${idx>=list.length-1?'disabled':''}>Next ›</button><button class="btn" data-go="0">Close</button></div>
+</div>`;
+}
+
+function setOpen(id,scroll=true){
+ open=id;
+ document.querySelectorAll('.card.on').forEach(c=>{c.classList.remove('on');c.setAttribute('aria-expanded','false')});
+ if(!id){$('#panel').hidden=true;try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}return}
+ const v=V.find(x=>x.id===id);if(!v)return;
+ const c=document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);if(c){c.classList.add('on');c.setAttribute('aria-expanded','true')}
+ fillPanel(v);place(scroll);
+ const vid=$('#pvid');
+ if(vid){
+  let swapped=false;
+  vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
+   if(swapped)return;swapped=true;
+   const pv=$('#pv');pv.innerHTML=`<iframe src="https://www.dvidshub.net/video/embed/${encodeURIComponent(v.dv)}" allow="autoplay; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe><div class="msg">If the player doesn't load here, <a href="${dvidsURL(v)}" target="_blank" rel="noopener">watch it on DVIDS</a>.</div>`;
+  });
+  if(scroll)vid.play().catch(()=>{});
+ }
+ try{history.replaceState(null,'','#'+id.toLowerCase().replace(/[^a-z0-9-]/g,''))}catch(e){}
+}
+
+/* ---------- controls ---------- */
+function opts(sel,pairs,cur){sel.innerHTML=pairs.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('');sel.value=cur;if(sel.value!==String(cur))sel.selectedIndex=0}
+function controls(){
+ const regs=['Middle East & Central Asia','Indo-Pacific','North America','Europe','Africa','Open ocean','Unspecified'].filter(r=>V.some(v=>v.region===r));
+ V.forEach(v=>{if(!regs.includes(v.region))regs.push(v.region)});
+ $('#chips').innerHTML=[['All',V.length],...regs.map(r=>[r,V.filter(v=>v.region===r).length])].map(([r,n])=>`<button class="chip" data-r="${esc(r)}" aria-pressed="${S.region===r}">${esc(r)}<span>${n}</span></button>`).join('');
+ const k=Object.entries(KEYS);opts($('#k1'),k,S.k1);opts($('#k2'),k,S.k2);
+ const rels=[...new Set(V.map(v=>v.rel))].sort((a,b)=>a-b);
+ opts($('#rel'),[['all','All releases'],...rels.map(r=>[r,`Release ${String(r).padStart(2,'0')} · ${REL[r]?fmtRel(REL[r]):(V.find(v=>v.rel===r)||{}).relDate||''}`])],S.rel);
+ const ag=[...new Set(V.map(v=>v.agency))].sort();
+ opts($('#agency'),[['all','All agencies'],...ag.map(a=>[a,`${a} (${V.filter(v=>v.agency===a).length})`])],S.agency);
+ const se=[...new Set(V.map(v=>v.sensor))];
+ opts($('#sensor'),[['all','All sensors'],...se.map(a=>[a,SENSOR[a]||a])],S.sensor);
+ const ys=[...new Set(V.map(yearOf).filter(y=>y!=null))].sort((a,b)=>a-b);
+ opts($('#y1'),[['all','Earliest'],...ys.map(y=>[y,y])],S.y1);opts($('#y2'),[['all','Latest'],...ys.map(y=>[y,y])],S.y2);
+ $('#dur').value=S.dur;$('#prec').value=S.prec;$('#grp').value=S.grp;$('#q').value=S.q;
+ dirs();
+ const rd=Math.max(...V.map(v=>v.relDate).filter(Boolean).map(d=>+d.replaceAll('-','')));
+ $('#sub').textContent=`${V.length} videos · ${rels.length} releases · latest ${fmtRel(String(rd).replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3'))}`;
+}
+function dirs(){
+ for(const n of[1,2]){const k=S['k'+n],d=S['d'+n],b=$('#d'+n);b.textContent=(d<0?'↓ ':'↑ ')+DIRL[k][d<0?1:0];b.setAttribute('aria-label',`${KEYS[k]}: ${DIRL[k][d<0?1:0]}, tap to flip`)}
+}
+function reset(){Object.assign(S,{...DEF,k1:S.k1,d1:S.d1,k2:S.k2,d2:S.d2,grp:S.grp});open=null;controls();render()}
+
+$('#chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.region=b.dataset.r;document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
+for(const id of['rel','agency','sensor','dur','y1','y2','prec','grp'])$('#'+id).addEventListener('change',e=>{S[id]=e.target.value;render()});
+for(const n of[1,2]){
+ $('#k'+n).addEventListener('change',e=>{S['k'+n]=e.target.value;dirs();render()});
+ $('#d'+n).addEventListener('click',()=>{S['d'+n]*=-1;dirs();render()});
+}
+let qt;$('#q').addEventListener('input',e=>{clearTimeout(qt);qt=setTimeout(()=>{S.q=e.target.value;render()},140)});
+$('#sform').addEventListener('submit',e=>{e.preventDefault();S.q=$('#q').value;render()});
+$('#reset').addEventListener('click',reset);
+$('#tf').addEventListener('click',()=>{const b=$('#bar'),s=b.classList.toggle('shut');$('#tf').setAttribute('aria-expanded',!s)});
+if(matchMedia('(max-width:760px)').matches)$('#bar').classList.add('shut');
+
+$('#feed').addEventListener('click',e=>{const c=e.target.closest('.card');if(c)setOpen(open===c.dataset.id?null:c.dataset.id)});
+$('#feed').addEventListener('keydown',e=>{const c=e.target.closest('.card');if(c&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setOpen(open===c.dataset.id?null:c.dataset.id)}});
+document.addEventListener('click',e=>{
+ const g=e.target.closest('[data-go]');
+ if(g){const d=+g.dataset.go;if(!d){const id=open;setOpen(null);document.querySelector(`.card[data-id="${CSS.escape(id)}"]`)?.focus();return}const i=list.findIndex(x=>x.id===open)+d;if(list[i])setOpen(list[i].id)}
+ const cp=e.target.closest('[data-copy]');
+ if(cp){const t=cp.dataset.copy;try{navigator.clipboard.writeText(t).then(()=>{cp.textContent='Copied'},()=>{cp.textContent='Select & copy'})}catch(err){cp.textContent='Select & copy'}}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open)setOpen(null);if(open&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){if(e.key==='ArrowRight'){const i=list.findIndex(x=>x.id===open);if(list[i+1])setOpen(list[i+1].id)}if(e.key==='ArrowLeft'){const i=list.findIndex(x=>x.id===open);if(list[i-1])setOpen(list[i-1].id)}}});
+const ro=new ResizeObserver(()=>place(false));ro.observe($('#feed'));
+
+// thumbnail that fails to load → drawn sensor-style stand-in
+document.addEventListener('error',e=>{const im=e.target;if(im.tagName==='IMG'&&im.dataset.fb){const v=V.find(x=>x.id===im.dataset.fb);if(v)im.outerHTML=T(v)}},true);
+
+// hover preview, YouTube-style (mouse only)
+if(matchMedia('(hover:hover) and (pointer:fine)').matches){
+ let hvT,hvEl;
+ const stop=()=>{clearTimeout(hvT);hvEl?.remove();hvEl=null};
+ $('#feed').addEventListener('mouseover',e=>{
+  const c=e.target.closest('.card');if(!c||c.contains(e.relatedTarget))return;
+  stop();const v=V.find(x=>x.id===c.dataset.id);if(!v||!v.dv)return;
+  hvT=setTimeout(()=>{const el=document.createElement('video');el.muted=true;el.autoplay=true;el.loop=true;el.playsInline=true;el.preload='auto';el.src=mp4URL(v);el.onerror=()=>el.remove();c.querySelector('.th').append(el);hvEl=el},550);
+ });
+ $('#feed').addEventListener('mouseout',e=>{const c=e.target.closest('.card');if(c&&!c.contains(e.relatedTarget))stop()});
+}
+
+/* import / export */
+const msg=t=>{$('#msg').textContent=t};
+$('#impGo').addEventListener('click',()=>{
+ try{let a=JSON.parse($('#imp').value);if(!Array.isArray(a))a=[a];
+  const ok=a.filter(o=>o&&o.id&&(o.releaseDate||REL[o.release]));
+  if(!ok.length){msg('No usable rows: each needs an id and a release or releaseDate.');return}
+  let raw=[];try{raw=JSON.parse(localStorage.getItem('pursue-added')||'[]')}catch(e){}
+  const ids=new Set(ok.map(o=>String(o.id)));raw=raw.filter(o=>!ids.has(String(o.id))).concat(ok);
+  try{localStorage.setItem('pursue-added',JSON.stringify(raw))}catch(e){msg('Added for this visit only (this browser blocks saving).')}
+  added=raw.map(fromJson).filter(v=>v.id&&v.relDate);build();tcache.clear();controls();render();if(!$('#msg').textContent)msg(`Added ${ok.length} video${ok.length>1?'s':''}.`);
+ }catch(err){msg('That isn’t valid JSON.')}
+});
+$('#impClr').addEventListener('click',()=>{try{localStorage.removeItem('pursue-added')}catch(e){}added=[];build();controls();render();msg('Removed added videos.')});
+$('#exp').addEventListener('click',()=>{
+ const out=JSON.stringify(list.map(v=>({id:v.id,release:v.rel,releaseDate:v.relDate,location:v.loc,region:v.region,captured:v.cap,duration:v.dur,agency:v.agency,sensor:v.sensor,title:v.title,description:v.desc,note:v.note||undefined})),null,1);
+ try{navigator.clipboard.writeText(out).then(()=>msg(`Copied ${list.length} records.`),()=>{$('#imp').value=out;msg('Copy blocked: the JSON is in the box above.')})}catch(e){$('#imp').value=out;msg('Copy blocked: the JSON is in the box above.')}
+});
+
+controls();render();
+const h=location.hash.slice(1);if(h){const v=V.find(x=>x.id.toLowerCase()===h);if(v){if(!list.some(x=>x.id===v.id)){S={...DEF};controls();render()}setOpen(v.id)}}
+}
+</script>
+</body>
+</html>
