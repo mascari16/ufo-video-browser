@@ -59,6 +59,18 @@ main{padding:8px max(3vw,14px) 40px}
 .card:hover .scan{animation:scan 1.6s linear infinite}
 @keyframes scan{to{transform:translateY(400%)}}
 @media (prefers-reduced-motion:reduce){.card:hover .scan{animation:none}.th{transition:none}}
+.grid{align-items:start}
+.th iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.card.playing .th{border-radius:12px;box-shadow:0 0 0 2px var(--acc)}
+.pl{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(0,0,0,.55);display:grid;place-items:center;transition:background .15s}
+.card:hover .pl{background:var(--acc)}
+.meta{cursor:pointer}
+.more{display:flex;justify-content:center;align-items:center;width:100%;min-height:40px;margin-top:2px;border:0;border-radius:10px;background:transparent;color:var(--mute);cursor:pointer}
+.more:hover{background:var(--chip)}
+.more svg{transition:transform .2s}
+.more[aria-expanded=true] svg{transform:rotate(180deg)}
+.info{background:var(--panel);border-radius:12px;padding:14px 16px;margin-top:4px;animation:drop .2s ease-out}
+.info[hidden]{display:none}
 .dur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.8);color:#fff;font:500 12px Roboto;padding:1px 5px;border-radius:4px}
 .new{position:absolute;left:6px;bottom:6px;background:var(--acc);color:#fff;font:500 12px Roboto;padding:1px 6px;border-radius:4px}
 .meta{display:flex;gap:12px;margin-top:11px}
@@ -147,7 +159,6 @@ textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--ch
 
 <main>
  <div id="feed"></div>
- <div id="panel" hidden></div>
 
  <details class="imp">
   <summary>Add videos from a newer release</summary>
@@ -330,6 +341,7 @@ const fmtRel=d=>{const[y,m,dd]=d.split('-');return`${MON[m-1]} ${+dd}, ${y}`};
 const fmtDur=s=>s==null?'—':s>=3600?`${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`:`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 const hash=s=>{let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0};
 const rng=s=>{let a=hash(s);return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
 const short=id=>id.replace('DOW-UAP-','').replace('-UAP-',' ');
 
 function norm(o,imported){
@@ -433,10 +445,15 @@ const avC=a=>`hsl(${hash(a)%360} 42% 40%)`;
 const avT=a=>a==='Not stated'?'?':a.replace(/^US |USAF /,'').replace(/[^A-Za-z0-9 ]/g,'').split(' ').filter(Boolean).map(w=>/^[A-Z0-9]{2,}$/.test(w)?w:w[0]).join('').slice(0,4).toUpperCase();
 const maxRel=()=>Math.max(...V.map(v=>v.rel));
 
+const thumbInner=(v,latest)=>`${v.dv?`<img src="${thumbURL(v)}" alt="" loading="lazy" data-fb="${esc(v.id)}">`:T(v)}<div class="scan"></div><span class="pl" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z" fill="#fff"/></svg></span><span class="dur">${fmtDur(v.dur)}</span>${v.rel===latest?'<span class="new">Latest release</span>':''}`;
+const infoOpen=new Set();let playing=null;
 function card(v,latest){
- return`<article class="card${open===v.id?' on':''}" data-id="${esc(v.id)}" role="button" tabindex="0" aria-expanded="${open===v.id}">
-<div class="th">${v.dv?`<img src="${thumbURL(v)}" alt="" loading="lazy" data-fb="${esc(v.id)}">`:T(v)}<div class="scan"></div><span class="dur">${fmtDur(v.dur)}</span>${v.rel===latest?'<span class="new">Latest release</span>':''}</div>
-<div class="meta"><span class="av" style="background:${avC(v.agency)}">${esc(avT(v.agency))}</span><div><h3>${esc(v.title)}</h3><p>${esc(v.agency)} · ${esc(v.loc||'Location not stated')}</p><p>Captured ${esc(fmtCap(v.cap))} · Released ${esc(v.relDate?fmtRel(v.relDate):'—')}</p></div></div></article>`;
+ const on=infoOpen.has(v.id);
+ return`<article class="card" data-id="${esc(v.id)}">
+<div class="th" role="button" tabindex="0" aria-label="Play ${esc(v.title)}">${thumbInner(v,latest)}</div>
+<div class="meta"><span class="av" style="background:${avC(v.agency)}">${esc(avT(v.agency))}</span><div><h3>${esc(v.title)}</h3><p>${esc(v.agency)} · ${esc(v.loc||'Location not stated')}</p><p>Captured ${esc(fmtCap(v.cap))} · Released ${esc(v.relDate?fmtRel(v.relDate):'—')}</p></div></div>
+<button class="more" aria-expanded="${on}" aria-label="More info about ${esc(short(v.id))}"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+<div class="info"${on?'':' hidden'}>${on?infoHTML(v):''}</div></article>`;
 }
 
 const GK={rel:v=>v.rel,region:v=>v.region,year:v=>yearOf(v)??'Unknown',agency:v=>v.agency,sensor:v=>v.sensor};
@@ -444,40 +461,22 @@ const GL={rel:(k,a)=>[`Release ${String(k).padStart(2,'0')}`,REL[k]?fmtRel(REL[k
 
 let list=[];
 function render(){
- list=filtered();save();
+ if(fsEl())return; // never rebuild while a video is fullscreen
+ list=filtered();save();playing=null;
  $('#count').textContent=`${list.length} of ${V.length} videos`;
- const latest=maxRel(),feed=$('#feed'),panel=$('#panel');
- document.body.append(panel);
- if(!list.length){feed.innerHTML=`<div class="empty"><p>No videos match these filters.</p><button class="btn pri" id="reset2">Clear filters</button></div>`;$('#reset2').onclick=reset;panel.hidden=true;return}
+ const latest=maxRel(),feed=$('#feed');
+ if(!list.length){feed.innerHTML=`<div class="empty"><p>No videos match these filters.</p><button class="btn pri" id="reset2">Clear filters</button></div>`;$('#reset2').onclick=reset;return}
  if(S.grp==='none'){feed.innerHTML=`<section class="shelf"><div class="grid">${list.map(v=>card(v,latest)).join('')}</div></section>`}
  else{
   const m=new Map();for(const v of list){const k=GK[S.grp](v);if(!m.has(k))m.set(k,[]);m.get(k).push(v)}
   feed.innerHTML=[...m].map(([k,a])=>{const[t,sub]=GL[S.grp](k,a);return`<section class="shelf"><h2>${esc(t)}<small>${esc(sub?sub+' · ':'')}${a.length} video${a.length>1?'s':''}</small></h2><div class="grid">${a.map(v=>card(v,latest)).join('')}</div></section>`}).join('');
  }
- place(false);
 }
 
-function place(scroll){
- const p=$('#panel');
- if(!open){p.hidden=true;return}
- const c=document.querySelector(`.card[data-id="${CSS.escape(open)}"]`);
- if(!c){p.hidden=true;return}
- const grid=c.parentElement,cards=[...grid.querySelectorAll(':scope>.card')],cols=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length||1;
- const i=cards.indexOf(c),end=Math.min(cards.length-1,Math.floor(i/cols)*cols+cols-1);
- if(cards[end].nextElementSibling!==p)cards[end].after(p);
- p.hidden=false;
- if(scroll)requestAnimationFrame(()=>{const hh=document.querySelector('header').getBoundingClientRect().height;window.scrollTo({top:Math.max(0,p.getBoundingClientRect().top+window.scrollY-hh-8),behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'})});
-}
-
-function fillPanel(v){
- const idx=list.findIndex(x=>x.id===v.id),rel=String(v.rel).padStart(2,'0');
+function infoHTML(v){
+ const rel=String(v.rel).padStart(2,'0');
  const yt=v.yt?`https://www.youtube.com/watch?v=${encodeURIComponent(v.yt)}`:'';
- const watch=v.dv?dvidsURL(v):yt||'https://www.war.gov/UFO/?type=.vid';
- const player=v.dv?`<video id="pvid" controls playsinline preload="metadata" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`:`${T(v)}<a class="play" href="${watch}" target="_blank" rel="noopener" aria-label="Watch ${esc(short(v.id))}"><span><svg width="22" height="22" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z" fill="#fff"/></svg></span></a><span class="dur">${fmtDur(v.dur)}</span>`;
- $('#panel').innerHTML=`<div class="pv" id="pv">${player}</div>
-<div class="pinfo">
-<h2>${esc(v.title)}</h2>
-<p class="idl">${esc(v.id)} <button class="copy" data-copy="${esc(v.id)}">Copy ID</button></p>
+ return`<p class="idl">${esc(v.id)} <button class="copy" data-copy="${esc(v.id)}">Copy ID</button></p>
 <p class="desc">${esc(v.desc)}</p>
 ${v.note?`<p class="note">${esc(v.note)}</p>`:''}
 <dl>
@@ -490,32 +489,40 @@ ${v.note?`<p class="note">${esc(v.note)}</p>`:''}
 <dt>Length</dt><dd>${v.dur==null?'Not listed':esc(fmtDur(v.dur))+` (${v.dur} s)`}</dd>
 </dl>
 <div class="acts">
-${v.dv?`<a class="btn" href="${dvidsURL(v)}" target="_blank" rel="noopener">Open on DVIDS</a><a class="btn" href="${mp4URL(v)}" target="_blank" rel="noopener">Video file (MP4)</a>`:''}
+${v.dv?`<a class="btn" href="${dvidsURL(v)}" target="_blank" rel="noopener">Open on DVIDS</a>`:''}
 ${yt?`<a class="btn" href="${yt}" target="_blank" rel="noopener">YouTube</a>`:''}
 ${v.dv?'':`<a class="btn pri" href="https://www.war.gov/UFO/?type=.vid" target="_blank" rel="noopener">Find it on war.gov</a>`}
 ${REL[v.rel]?`<a class="btn" href="https://www.war.gov/UFO/release/${rel}/" target="_blank" rel="noopener">Release ${rel} page</a>`:''}
-</div>
-<div class="pnav"><button class="btn" data-go="-1" ${idx<=0?'disabled':''}>‹ Previous</button><button class="btn" data-go="1" ${idx>=list.length-1?'disabled':''}>Next ›</button><button class="btn" data-go="0">Close</button></div>
 </div>`;
 }
 
-function setOpen(id,scroll=true){
- open=id;
- document.querySelectorAll('.card.on').forEach(c=>{c.classList.remove('on');c.setAttribute('aria-expanded','false')});
- if(!id){$('#panel').hidden=true;try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}return}
- const v=V.find(x=>x.id===id);if(!v)return;
- const c=document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);if(c){c.classList.add('on');c.setAttribute('aria-expanded','true')}
- fillPanel(v);place(scroll);
- const vid=$('#pvid');
- if(vid){
-  let swapped=false;
-  vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
-   if(swapped)return;swapped=true;
-   const pv=$('#pv');pv.innerHTML=`<iframe src="https://www.dvidshub.net/video/embed/${encodeURIComponent(v.dv)}" allow="autoplay; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe><div class="msg">If the player doesn't load here, <a href="${dvidsURL(v)}" target="_blank" rel="noopener">watch it on DVIDS</a>.</div>`;
-  });
-  if(scroll)vid.play().catch(()=>{});
- }
- try{history.replaceState(null,'','#'+id.toLowerCase().replace(/[^a-z0-9-]/g,''))}catch(e){}
+const cardOf=id=>document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+function toggleInfo(c,force){
+ const id=c.dataset.id,v=V.find(x=>x.id===id);if(!v)return;
+ const show=force??!infoOpen.has(id),box=c.querySelector('.info'),b=c.querySelector('.more');
+ if(show){infoOpen.add(id);box.innerHTML=infoHTML(v);box.hidden=false}else{infoOpen.delete(id);box.hidden=true}
+ b.setAttribute('aria-expanded',show);
+}
+function stopPlaying(){
+ if(!playing)return;const c=cardOf(playing);playing=null;
+ if(c){const v=V.find(x=>x.id===c.dataset.id);c.classList.remove('playing');c.querySelector('.th').innerHTML=thumbInner(v,maxRel())}
+}
+function playIn(c){
+ const v=V.find(x=>x.id===c.dataset.id);if(!v)return;
+ if(playing===v.id)return;
+ if(!v.dv){toggleInfo(c,true);return}
+ stopPlaying();playing=v.id;c.classList.add('playing');
+ const th=c.querySelector('.th');
+ th.innerHTML=`<video controls playsinline autoplay preload="auto" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`;
+ const vid=th.querySelector('video');let swapped=false;
+ vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
+  if(swapped)return;swapped=true;
+  th.innerHTML=`<iframe src="https://www.dvidshub.net/video/embed/${encodeURIComponent(v.dv)}" allow="autoplay; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe>`;
+ });
+ vid.play().catch(()=>{});
+ // if the top of the video is hidden under the header, bring it just below
+ const hh=document.querySelector('header').getBoundingClientRect().height,r=th.getBoundingClientRect();
+ if(r.top<hh+4||r.bottom>innerHeight)window.scrollTo({top:Math.max(0,r.top+scrollY-hh-10),behavior:'smooth'});
 }
 
 /* ---------- controls ---------- */
@@ -543,7 +550,7 @@ function controls(){
 function dirs(){
  for(const n of[1,2]){const k=S['k'+n],d=S['d'+n],b=$('#d'+n);b.textContent=(d<0?'↓ ':'↑ ')+DIRL[k][d<0?1:0];b.setAttribute('aria-label',`${KEYS[k]}: ${DIRL[k][d<0?1:0]}, tap to flip`)}
 }
-function reset(){Object.assign(S,{...DEF,k1:S.k1,d1:S.d1,k2:S.k2,d2:S.d2,grp:S.grp});open=null;controls();render()}
+function reset(){Object.assign(S,{...DEF,k1:S.k1,d1:S.d1,k2:S.k2,d2:S.d2,grp:S.grp});controls();render()}
 
 $('#chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.region=b.dataset.r;document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
 $('#relchips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.rel=b.dataset.rel;$('#rel').value=S.rel;document.querySelectorAll('#relchips .chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
@@ -559,18 +566,18 @@ $('#reset').addEventListener('click',reset);
 $('#tf').addEventListener('click',()=>{const b=$('#bar'),s=b.classList.toggle('shut');$('#tf').setAttribute('aria-expanded',!s)});
 if(matchMedia('(max-width:760px)').matches)$('#bar').classList.add('shut');
 
-$('#feed').addEventListener('click',e=>{const c=e.target.closest('.card');if(c)setOpen(open===c.dataset.id?null:c.dataset.id)});
-$('#feed').addEventListener('keydown',e=>{const c=e.target.closest('.card');if(c&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setOpen(open===c.dataset.id?null:c.dataset.id)}});
+$('#feed').addEventListener('click',e=>{
+ const c=e.target.closest('.card');if(!c)return;
+ if(e.target.closest('.info a,.info button'))return;
+ if(e.target.closest('.th')){playIn(c);return}
+ if(e.target.closest('.more,.meta')){toggleInfo(c);return}
+});
+$('#feed').addEventListener('keydown',e=>{const t=e.target.closest('.th');if(t&&(e.key==='Enter'||e.key===' ')){e.preventDefault();playIn(t.closest('.card'))}});
 document.addEventListener('click',e=>{
- const g=e.target.closest('[data-go]');
- if(g){const d=+g.dataset.go;if(!d){const id=open;setOpen(null);document.querySelector(`.card[data-id="${CSS.escape(id)}"]`)?.focus();return}const i=list.findIndex(x=>x.id===open)+d;if(list[i])setOpen(list[i].id)}
  const cp=e.target.closest('[data-copy]');
  if(cp){const t=cp.dataset.copy;try{navigator.clipboard.writeText(t).then(()=>{cp.textContent='Copied'},()=>{cp.textContent='Select & copy'})}catch(err){cp.textContent='Select & copy'}}
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open)setOpen(null);if(open&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){if(e.key==='ArrowRight'){const i=list.findIndex(x=>x.id===open);if(list[i+1])setOpen(list[i+1].id)}if(e.key==='ArrowLeft'){const i=list.findIndex(x=>x.id===open);if(list[i-1])setOpen(list[i-1].id)}}});
-const ro=new ResizeObserver(()=>place(false));ro.observe($('#feed'));
 
-const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
 const onFs=()=>{const el=fsEl();const so=screen.orientation;if(!so)return;
  if(el){const vid=el.tagName==='VIDEO'?el:el.querySelector&&el.querySelector('video');const portrait=vid&&vid.videoHeight>vid.videoWidth;so.lock&&so.lock(portrait?'portrait':'landscape').catch(()=>{})}
  else{try{so.unlock&&so.unlock()}catch(e){}}};
@@ -584,8 +591,8 @@ if(matchMedia('(hover:hover) and (pointer:fine)').matches){
  const stop=()=>{clearTimeout(hvT);hvEl?.remove();hvEl=null};
  $('#feed').addEventListener('mouseover',e=>{
   const c=e.target.closest('.card');if(!c||c.contains(e.relatedTarget))return;
-  stop();const v=V.find(x=>x.id===c.dataset.id);if(!v||!v.dv)return;
-  hvT=setTimeout(()=>{const el=document.createElement('video');el.muted=true;el.autoplay=true;el.loop=true;el.playsInline=true;el.preload='auto';el.src=mp4URL(v);el.onerror=()=>el.remove();c.querySelector('.th').append(el);hvEl=el},550);
+  stop();const v=V.find(x=>x.id===c.dataset.id);if(!v||!v.dv||playing===v.id)return;
+  hvT=setTimeout(()=>{if(playing===v.id)return;const el=document.createElement('video');el.muted=true;el.autoplay=true;el.loop=true;el.playsInline=true;el.preload='auto';el.src=mp4URL(v);el.onerror=()=>el.remove();c.querySelector('.th').append(el);hvEl=el},550);
  });
  $('#feed').addEventListener('mouseout',e=>{const c=e.target.closest('.card');if(c&&!c.contains(e.relatedTarget))stop()});
 }
@@ -610,8 +617,8 @@ $('#exp').addEventListener('click',()=>{
 
 controls();render();
 // videos found by the daily GitHub job (extra.json beside this page)
-fetch('extra.json',{cache:'no-store'}).then(r=>r.ok?r.json():[]).then(a=>{if(!Array.isArray(a)||!a.length)return;auto=a.map(o=>{const v=fromJson(o);v.imported=false;return v}).filter(v=>v.id&&v.relDate);build();controls();render();if(open)setOpen(open,false)}).catch(()=>{});
-const h=location.hash.slice(1);if(h){const v=V.find(x=>x.id.toLowerCase()===h);if(v){if(!list.some(x=>x.id===v.id)){S={...DEF};controls();render()}setOpen(v.id)}}
+fetch('extra.json',{cache:'no-store'}).then(r=>r.ok?r.json():[]).then(a=>{if(!Array.isArray(a)||!a.length)return;auto=a.map(o=>{const v=fromJson(o);v.imported=false;return v}).filter(v=>v.id&&v.relDate);if(playing||fsEl())return;build();controls();render()}).catch(()=>{});
+const h=location.hash.slice(1);if(h){const v=V.find(x=>x.id.toLowerCase()===h);if(v){if(!list.some(x=>x.id===v.id)){S={...DEF};controls();render()}const c=cardOf(v.id);if(c){toggleInfo(c,true);const hh=document.querySelector('header').getBoundingClientRect().height;scrollTo(0,c.getBoundingClientRect().top+scrollY-hh-10)}}}
 }
 </script>
 </body>
