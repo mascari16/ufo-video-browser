@@ -32,6 +32,7 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px s
 .chip{flex:none;height:34px;padding:0 13px;border-radius:8px;border:0;background:var(--chip);cursor:pointer;font-weight:500;white-space:nowrap}
 .chip[aria-pressed=true]{background:var(--ink);color:var(--bg)}
 .chip span{opacity:.6;font-weight:400;margin-left:4px}
+.rels{padding-top:0}.rels .chip{height:30px;font-size:14px;background:transparent;box-shadow:inset 0 0 0 1px var(--chip2)}.rels .chip[aria-pressed=true]{background:var(--acc);color:#fff;box-shadow:none}
 .bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:12px max(3vw,14px);border-bottom:1px solid var(--line)}
 .bar label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
 .bar select,.bar .dir{height:38px;border-radius:8px;border:1px solid var(--chip2);background:var(--bg);padding:0 8px;font-size:15px;min-height:38px}
@@ -122,6 +123,7 @@ textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--ch
   </form>
  </div>
  <div class="chips" id="chips" role="toolbar" aria-label="Filter by region"></div>
+ <div class="chips rels" id="relchips" role="toolbar" aria-label="Filter by release"></div>
 </header>
 
 <div class="bar" id="bar">
@@ -464,7 +466,7 @@ function place(scroll){
  const i=cards.indexOf(c),end=Math.min(cards.length-1,Math.floor(i/cols)*cols+cols-1);
  if(cards[end].nextElementSibling!==p)cards[end].after(p);
  p.hidden=false;
- if(scroll)requestAnimationFrame(()=>p.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth',block:'nearest'}));
+ if(scroll)requestAnimationFrame(()=>{const hh=document.querySelector('header').getBoundingClientRect().height;window.scrollTo({top:Math.max(0,p.getBoundingClientRect().top+window.scrollY-hh-8),behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'})});
 }
 
 function fillPanel(v){
@@ -522,6 +524,8 @@ function controls(){
  const regs=['Middle East & Central Asia','Indo-Pacific','North America','Europe','Africa','Open ocean','Unspecified'].filter(r=>V.some(v=>v.region===r));
  V.forEach(v=>{if(!regs.includes(v.region))regs.push(v.region)});
  $('#chips').innerHTML=[['All',V.length],...regs.map(r=>[r,V.filter(v=>v.region===r).length])].map(([r,n])=>`<button class="chip" data-r="${esc(r)}" aria-pressed="${S.region===r}">${esc(r)}<span>${n}</span></button>`).join('');
+ const relList=[...new Set(V.map(v=>v.rel))].sort((a,b)=>b-a);
+ $('#relchips').innerHTML=[['all','All releases',V.length],...relList.map(r=>[String(r),`Release ${String(r).padStart(2,'0')}`,V.filter(v=>v.rel===r).length])].map(([r,l,n])=>`<button class="chip" data-rel="${esc(r)}" aria-pressed="${String(S.rel)===r}">${esc(l)}<span>${n}</span></button>`).join('');
  const k=Object.entries(KEYS);opts($('#k1'),k,S.k1);opts($('#k2'),k,S.k2);
  const rels=[...new Set(V.map(v=>v.rel))].sort((a,b)=>a-b);
  opts($('#rel'),[['all','All releases'],...rels.map(r=>[r,`Release ${String(r).padStart(2,'0')} · ${REL[r]?fmtRel(REL[r]):(V.find(v=>v.rel===r)||{}).relDate||''}`])],S.rel);
@@ -542,6 +546,8 @@ function dirs(){
 function reset(){Object.assign(S,{...DEF,k1:S.k1,d1:S.d1,k2:S.k2,d2:S.d2,grp:S.grp});open=null;controls();render()}
 
 $('#chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.region=b.dataset.r;document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
+$('#relchips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.rel=b.dataset.rel;$('#rel').value=S.rel;document.querySelectorAll('#relchips .chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
+$('#rel').addEventListener('change',()=>{document.querySelectorAll('#relchips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.rel===String(S.rel)))});
 for(const id of['rel','agency','sensor','dur','y1','y2','prec','grp'])$('#'+id).addEventListener('change',e=>{S[id]=e.target.value;render()});
 for(const n of[1,2]){
  $('#k'+n).addEventListener('change',e=>{S['k'+n]=e.target.value;dirs();render()});
@@ -564,6 +570,11 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open)setOpen(null);if(open&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){if(e.key==='ArrowRight'){const i=list.findIndex(x=>x.id===open);if(list[i+1])setOpen(list[i+1].id)}if(e.key==='ArrowLeft'){const i=list.findIndex(x=>x.id===open);if(list[i-1])setOpen(list[i-1].id)}}});
 const ro=new ResizeObserver(()=>place(false));ro.observe($('#feed'));
 
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+const onFs=()=>{const el=fsEl();const so=screen.orientation;if(!so)return;
+ if(el){const vid=el.tagName==='VIDEO'?el:el.querySelector&&el.querySelector('video');const portrait=vid&&vid.videoHeight>vid.videoWidth;so.lock&&so.lock(portrait?'portrait':'landscape').catch(()=>{})}
+ else{try{so.unlock&&so.unlock()}catch(e){}}};
+document.addEventListener('fullscreenchange',onFs);document.addEventListener('webkitfullscreenchange',onFs);
 // thumbnail that fails to load → drawn sensor-style stand-in
 document.addEventListener('error',e=>{const im=e.target;if(im.tagName==='IMG'&&im.dataset.fb){const v=V.find(x=>x.id===im.dataset.fb);if(v)im.outerHTML=T(v)}},true);
 
