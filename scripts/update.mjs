@@ -77,7 +77,7 @@ for (const f of found.slice(0, MAX_NEW_PER_RUN)) {
     : /INDOPACOM|China Sea|Yellow Sea|Japan/i.test(title + location) ? 'INDOPACOM' : 'Not stated';
   extra.push({
     id: f.id, release, releaseDate: today, location, captured: yr, duration: dur, agency, sensor,
-    title: title || `${f.id} video`, description: desc, dvids, dod, ym, fr,
+    title: (title || `${f.id} video`).slice(0, 200), description: desc.slice(0, 600), dvids, dod, ym, fr,
     note: 'Added automatically by the daily update; details may be refined later.'
   });
   known.add(f.id); added++;
@@ -122,7 +122,7 @@ for (const u of CSV_URLS) {
     let release = relNum && relNum < 50 && !relDate.length ? relNum : 0;
     if (!release) { if (!newRel) newRel = maxRel + 1; release = newRel; }
     const inc = cInc >= 0 ? r[cInc] : '', yr = (inc.match(/(19|20)\d{2}/) || [''])[0] || ((inc.match(/\/(\d{2})$/) || [])[1] ? '20' + inc.match(/\/(\d{2})$/)[1] : '');
-    const title = (cTitle >= 0 ? r[cTitle] : '') || id, desc = cDesc >= 0 ? r[cDesc] : '';
+    const title = ((cTitle >= 0 ? r[cTitle] : '') || id).slice(0, 200), desc = cDesc >= 0 ? r[cDesc] : '';
     const location = cLoc >= 0 ? r[cLoc] : '';
     extra.push({ id, release, releaseDate, location, captured: yr, duration: null, agency: (cAg >= 0 ? r[cAg] : '') || 'Not stated',
       sensor: /infrared/i.test(title + desc) ? 'IR' : 'EO/IR', title, description: desc.slice(0, 600), dvids: img[2], dod: img[3], ym: img[1], fr: img[4],

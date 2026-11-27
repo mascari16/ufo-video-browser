@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://d1ldvf68ux039x.cloudfront.net; media-src 'self' blob: https://d34w7g4gy10iej.cloudfront.net; connect-src 'self' https://d34w7g4gy10iej.cloudfront.net; frame-src https://www.dvidshub.net; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>PURSUE Video Browser</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Condensed:wght@500;700&display=swap" rel="stylesheet">
@@ -379,7 +381,9 @@ const short=id=>id.replace('DOW-UAP-','').replace('-UAP-',' ');
 function norm(o,imported){
  const id=o.id.includes('-')?o.id:'DOW-UAP-'+o.id;
  const rel=+o.rel||0, cap=o.cap||'';
- const sr=SRC[id]||(o.dvids&&o.dod&&o.ym?{dv:String(o.dvids),dod:String(o.dod).replace(/\D/g,''),ym:String(o.ym),fr:String(o.fr||'1')}:{});
+ const dg=(x,n)=>{const t=String(x??'').replace(/\D/g,'');return n.test(t)?t:''};
+ const ext={dv:dg(o.dvids,/^\d{5,9}$/),dod:dg(o.dod,/^\d{6,12}$/),ym:dg(o.ym,/^\d{4}$/),fr:dg(o.fr||'1',/^\d{1,2}$/)||'1'};
+ const sr=SRC[id]||(ext.dv&&ext.dod&&ext.ym?ext:{});
  return{...sr,id,rel,relDate:o.relDate||REL[rel]||'',loc:o.loc||'',region:o.region||regionOf(o.loc||''),cap,capN:capN(cap),prec:precOf(cap),dur:o.dur==null||o.dur===''?null:+o.dur,agency:o.agency||'Not stated',sensor:o.sensor||'EO/IR',title:o.title||id,desc:o.desc||'',yt:o.yt||'',note:o.note||'',imported:!!imported}
 }
 const fromRaw=a=>norm({id:a[0],rel:a[1],loc:a[2],cap:a[3],dur:a[4],agency:a[5],sensor:a[6],title:a[7],desc:a[8],yt:a[9],note:a[10]});
