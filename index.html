@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://d1ldvf68ux039x.cloudfront.net; media-src 'self' blob: https://d34w7g4gy10iej.cloudfront.net; connect-src 'self' https://d34w7g4gy10iej.cloudfront.net; frame-src https://www.dvidshub.net; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="color-scheme" content="light dark">
 <title>PURSUE Video Browser</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Condensed:wght@500;700&display=swap" rel="stylesheet">
@@ -84,15 +85,19 @@ main{padding:8px max(3vw,14px) 40px}
 .sl{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.22);margin:0 11px;touch-action:pan-y}
 .sl-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--acc);pointer-events:none}
 .sl-th{position:absolute;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5);touch-action:none;cursor:grab}
-.sl-th::before{content:"";position:absolute;inset:-12px;border-radius:50%}
+.sl-th::before{content:"";position:absolute;inset:-9px;border-radius:50%}
 .sl.drag .sl-th{transform:scale(1.2);background:var(--acc);cursor:grabbing}
 .sl-th:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 .adj output{text-align:right;font-variant-numeric:tabular-nums;color:#ddd}
-.adj-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.adj-b{border:0;border-radius:16px;padding:8px 12px;min-height:36px;background:rgba(255,255,255,.14);color:#fff;font:500 13px Roboto;cursor:pointer}
+.adj-row{position:relative;z-index:2;display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.adj-b{border:0;border-radius:18px;padding:8px 16px;min-height:40px;touch-action:manipulation;background:rgba(255,255,255,.14);color:#fff;font:500 13px Roboto;cursor:pointer}
 .adj-b[aria-pressed=true]{background:var(--acc)}
 .th.adjopen .vc{opacity:1;pointer-events:auto}
-.th>video{transform-origin:center;transition:transform .05s linear}
+.th>video,.th>.vcan{transform-origin:center;transition:transform .05s linear}
+.th>.vcan{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;pointer-events:none;background:#000}
+.th>.vcan[hidden]{display:none}
+.th>video.under{opacity:0}
+.th:fullscreen>.vcan,.th:-webkit-full-screen>.vcan{object-fit:contain}
 .vc-seek{flex:1;min-width:40px;height:28px;accent-color:var(--acc);background:transparent;margin:0 4px}
 #toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:50;max-width:min(92vw,460px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
 #toast[hidden]{display:none}
@@ -586,7 +591,7 @@ function playIn(c){
  if(!v.dv){toggleInfo(c,true);return}
  stopPlaying();playing=v.id;c.classList.add('playing');
  const th=c.querySelector('.th');
- th.innerHTML=`<video playsinline autoplay preload="auto" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>
+ th.innerHTML=`<video playsinline autoplay preload="auto" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video><canvas class="vcan" hidden></canvas>
 <div class="vc"><button class="vc-b vc-play" aria-label="Pause">${IC.pause}</button><span class="vc-t">0:00 / ${fmtDur(v.dur)}</span><input class="vc-seek" type="range" min="0" max="1000" value="0" aria-label="Seek"><button class="vc-b vc-adj" aria-label="Adjust picture" aria-expanded="false">${IC.adj}</button><button class="vc-b vc-mute" aria-label="Mute">${IC.vol}</button><button class="vc-b vc-fs" aria-label="Full screen">${IC.fs}</button></div>
 <button class="fsx" aria-label="Exit full screen">${IC.x}</button>
 <div class="adj" hidden>
@@ -595,7 +600,7 @@ function playIn(c){
 <div class="arow"><span>Saturation</span><div class="sl" data-k="s" data-min="0" data-max="300" data-step="5"><div class="sl-fill"></div><div class="sl-th" role="slider" tabindex="0" aria-label="Saturation" aria-valuemin="0" aria-valuemax="300"></div></div><output></output></div>
 <div class="arow"><span>Zoom</span><div class="sl" data-k="z" data-min="100" data-max="400" data-step="10"><div class="sl-fill"></div><div class="sl-th" role="slider" tabindex="0" aria-label="Zoom" aria-valuemin="100" aria-valuemax="400"></div></div><output></output></div>
 <div class="arow"><span>Speed</span><div class="sl" data-k="r" data-min="25" data-max="200" data-step="25"><div class="sl-fill"></div><div class="sl-th" role="slider" tabindex="0" aria-label="Speed" aria-valuemin="25" aria-valuemax="200"></div></div><output></output></div>
-<div class="adj-row"><button class="adj-b" data-act="inv" aria-pressed="false">Invert (white-hot ⇄ black-hot)</button><button class="adj-b" data-act="reset">Reset</button></div>
+<div class="adj-row"><button type="button" class="adj-b" data-act="inv" aria-pressed="false">Invert: OFF</button><button type="button" class="adj-b" data-act="reset">Reset</button></div>
 </div>`;
  const vid=th.querySelector('video'),bar=th.querySelector('.vc'),pb=bar.querySelector('.vc-play'),seek=bar.querySelector('.vc-seek'),tm=bar.querySelector('.vc-t'),mb_=bar.querySelector('.vc-mute'),fb=bar.querySelector('.vc-fs');
  let swapped=false,hideT;
@@ -623,11 +628,31 @@ function playIn(c){
  // ---- picture adjustments ----
  const panel=th.querySelector('.adj'),ab=bar.querySelector('.vc-adj');
  const dock=()=>{if(fsEl()===th){if(panel.parentElement!==th)th.append(panel)}else if(panel.parentElement===th)th.after(panel)};dock();
- const paint=()=>{const a=ADJ;vid.style.filter=`brightness(${a.b}%) contrast(${a.c}%) saturate(${a.s}%)${a.i?' invert(1)':''}`;
+ const can=th.querySelector('.vcan'),cx=can.getContext('2d'),CANF='filter' in CanvasRenderingContext2D.prototype;
+ let drawing=false;
+ const frame=()=>{
+  if(!drawing||!th.isConnected){drawing=false;return}
+  if(vid.readyState>=2&&vid.videoWidth){
+   if(can.width!==vid.videoWidth){can.width=vid.videoWidth;can.height=vid.videoHeight}
+   cx.filter=fstr();cx.drawImage(vid,0,0,can.width,can.height);
+  }
+  if(vid.requestVideoFrameCallback&&!vid.paused)vid.requestVideoFrameCallback(frame);else requestAnimationFrame(frame);
+ };
+ const fstr=()=>`brightness(${ADJ.b}%) contrast(${ADJ.c}%) saturate(${ADJ.s}%)${ADJ.i?' invert(1)':''}`;
+ const looks=()=>ADJ.b!==100||ADJ.c!==100||ADJ.s!==100||ADJ.i;
+ const useCanvas=()=>{
+  const on=CANF&&looks();
+  can.hidden=!on;vid.classList.toggle('under',on);
+  if(on&&!drawing){drawing=true;frame()}
+  if(!on)drawing=false;
+ };
+ vid.addEventListener('play',()=>{if(drawing){drawing=false;useCanvas()}});
+ vid.addEventListener('seeked',()=>{if(drawing&&vid.paused)requestAnimationFrame(()=>{if(vid.readyState>=2){cx.filter=fstr();cx.drawImage(vid,0,0,can.width,can.height)}})});
+ const paint=()=>{const a=ADJ;vid.style.filter=CANF?'':fstr();useCanvas();
   const z=a.z/100,mx=(z-1)*50;a.px=Math.max(-mx,Math.min(mx,a.px));a.py=Math.max(-mx,Math.min(mx,a.py));
-  vid.style.transform=z>1?`translate(${a.px}%,${a.py}%) scale(${z})`:'';vid.playbackRate=a.r/100;
+  vid.style.transform=can.style.transform=z>1?`translate(${a.px}%,${a.py}%) scale(${z})`:'';vid.playbackRate=a.r/100;
   panel.querySelectorAll('.sl').forEach(sl=>{const k=sl.dataset.k,mn=+sl.dataset.min,mx=+sl.dataset.max,pct=(a[k]-mn)/(mx-mn)*100,th_=sl.querySelector('.sl-th');th_.style.left=pct+'%';sl.querySelector('.sl-fill').style.width=pct+'%';th_.setAttribute('aria-valuenow',a[k]);const t=k==='z'||k==='r'?(a[k]/100)+'×':a[k]+'%';th_.setAttribute('aria-valuetext',t);sl.nextElementSibling.textContent=t});
-  panel.querySelector('[data-act=inv]').setAttribute('aria-pressed',!!a.i);
+  const ib=panel.querySelector('[data-act=inv]');ib.setAttribute('aria-pressed',!!a.i);ib.textContent=a.i?'Invert: ON':'Invert: OFF';
   ab.classList.toggle('on',adjChanged());saveAdj()};
  const setK=(sl,v)=>{const k=sl.dataset.k,mn=+sl.dataset.min,mx=+sl.dataset.max,st=+sl.dataset.step;v=Math.round(Math.min(mx,Math.max(mn,v))/st)*st;if(ADJ[k]===v)return;ADJ[k]=v;if(k==='z'&&v===100){ADJ.px=0;ADJ.py=0}paint();show()};
  panel.querySelectorAll('.sl').forEach(sl=>{
@@ -637,7 +662,10 @@ function playIn(c){
   const end=()=>{g=null;sl.classList.remove('drag')};knob.addEventListener('pointerup',end);knob.addEventListener('pointercancel',end);
   knob.addEventListener('keydown',e=>{const st=+sl.dataset.step,k=sl.dataset.k,d={ArrowRight:st,ArrowUp:st,ArrowLeft:-st,ArrowDown:-st,PageUp:st*4,PageDown:-st*4}[e.key];if(e.key==='Home')d0(+sl.dataset.min);else if(e.key==='End')d0(+sl.dataset.max);else if(d!=null){e.preventDefault();setK(sl,ADJ[k]+d)}function d0(v){e.preventDefault();setK(sl,v)}});
  });
- panel.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;if(b.dataset.act==='inv')ADJ.i=!ADJ.i;else Object.assign(ADJ,ADJ0);paint();show()});
+ // each button gets its own handler; ignore the click that follows a handled touch so it can't double-toggle
+ const act=(btn,fn)=>{let t=0;btn.addEventListener('pointerup',e=>{if(e.pointerType==='mouse')return;t=Date.now();e.preventDefault();fn();paint();show()});btn.addEventListener('click',e=>{e.stopPropagation();if(Date.now()-t<700)return;fn();paint();show()})};
+ act(panel.querySelector('[data-act=inv]'),()=>{ADJ.i=!ADJ.i});
+ act(panel.querySelector('[data-act=reset]'),()=>{Object.assign(ADJ,ADJ0)});
  ab.addEventListener('click',()=>{panel.hidden=!panel.hidden;ab.setAttribute('aria-expanded',!panel.hidden);th.classList.toggle('adjopen',!panel.hidden);show()});
  vid.addEventListener('loadedmetadata',paint);paint();
  // drag to pan while zoomed (a short tap still plays/pauses)
