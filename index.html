@@ -53,8 +53,8 @@ main{padding:8px max(3vw,14px) 40px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,272px),1fr));gap:26px 16px}
 .card{cursor:pointer;border-radius:12px;outline-offset:4px}
 .th{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111;transition:border-radius .2s}
-.th svg,.th img,.th video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
-.th video{z-index:1}
+.th>svg,.th>img,.th>video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+.th>video{z-index:1}
 .pv video,.pv iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
 .pv .msg{position:absolute;inset:auto 0 0 0;padding:10px 12px;background:rgba(0,0,0,.75);color:#fff;font-size:13px}
 .pv .msg a{color:#ffb4a3}
@@ -65,19 +65,29 @@ main{padding:8px max(3vw,14px) 40px}
 @keyframes scan{to{transform:translateY(400%)}}
 @media (prefers-reduced-motion:reduce){.card:hover .scan{animation:none}.th{transition:none}}
 .grid{align-items:start}
-.fsb,.fsx{position:absolute;z-index:3;border:0;display:grid;place-items:center;cursor:pointer;color:#fff;background:rgba(0,0,0,.55)}
-.dlb{position:absolute;z-index:3;top:8px;right:56px;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:#fff;background:rgba(0,0,0,.55);text-decoration:none}
-.th:fullscreen .dlb,.th:-webkit-full-screen .dlb{display:none}
-.dlb.busy{width:auto;padding:0 10px;font:500 13px Roboto}
+.fsx{position:absolute;z-index:4;display:none;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:34px;height:34px;border:0;border-radius:50%;background:rgba(0,0,0,.5);place-items:center;cursor:pointer}
+.vc{position:absolute;z-index:3;left:0;right:0;bottom:0;display:flex;align-items:center;gap:4px;padding:18px 6px 4px;background:linear-gradient(transparent,rgba(0,0,0,.7));opacity:0;pointer-events:none;transition:opacity .2s}
+.th.ctl .vc{opacity:1;pointer-events:auto}
+.vc-b{flex:none;width:40px;height:40px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;border-radius:8px}
+.vc-t{flex:none;color:#fff;font:500 12px Roboto;white-space:nowrap;padding:0 4px;font-variant-numeric:tabular-nums}
+.vc-seek{flex:1;min-width:40px;height:28px;accent-color:var(--acc);background:transparent;margin:0 4px}
 #toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:50;max-width:min(92vw,460px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
 #toast[hidden]{display:none}
-.fsb{top:8px;right:8px;width:40px;height:40px;border-radius:10px}
-.fsx{display:none;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));width:48px;height:48px;border-radius:50%}
+.dlall{flex-basis:100%;display:flex;justify-content:flex-end;align-items:center;gap:6px;border:0;background:none;color:var(--mute);font-size:13px;padding:4px 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+#dlg{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:16px}
+#dlg[hidden],.dlall[hidden]{display:none}
+.dlg-box{background:var(--bg);color:var(--ink);border-radius:16px;padding:20px;width:min(100%,440px);max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.dlg-box h2{margin:0 0 8px;font:700 20px/1.25 Roboto}
+.dlg-box p{margin:0 0 12px;font-size:15px}
+.dlg-box .small{font-size:13px;color:var(--mute)}
+.dlg-box .row{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.dlg-box progress{width:100%;height:10px;accent-color:var(--acc);margin:4px 0 8px}
+.dlg-box textarea{min-height:90px}
 .th:fullscreen{border-radius:0;aspect-ratio:auto;width:100%;height:100%;background:#000;box-shadow:none}
 .th:-webkit-full-screen{border-radius:0;width:100%;height:100%;background:#000}
 .th:fullscreen video{object-fit:contain}.th:-webkit-full-screen video{object-fit:contain}
-.th:fullscreen .fsx,.th:-webkit-full-screen .fsx{display:grid}
-.th:fullscreen .fsb,.th:-webkit-full-screen .fsb{display:none}
+.th:fullscreen.ctl .fsx,.th:-webkit-full-screen.ctl .fsx{display:grid}
+.th:fullscreen .vc{padding:24px max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
 .th iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
 .card.playing .th{border-radius:12px;box-shadow:0 0 0 2px var(--acc)}
 .pl{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(0,0,0,.55);display:grid;place-items:center;transition:background .15s}
@@ -174,9 +184,11 @@ textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--ch
   <option value="none">No grouping</option><option value="rel">By release</option><option value="region">By region</option><option value="year">By capture year</option><option value="agency">By agency</option><option value="sensor">By sensor</option></select></label>
  <button class="btn f" id="reset">Clear filters</button>
  <span class="count" id="count" aria-live="polite"></span>
+ <button class="dlall f" id="dlall" aria-haspopup="dialog"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download all shown…</button>
 </div>
 
 <div id="toast" role="status" hidden></div>
+<div id="dlg" hidden><div class="dlg-box" role="dialog" aria-modal="true" aria-labelledby="dlgT"></div></div>
 <main>
  <div id="feed"></div>
 
@@ -484,7 +496,7 @@ function render(){
  if(fsEl())return; // never rebuild while a video is fullscreen
  list=filtered();save();playing=null;
  $('#hdtog .dot').hidden=!FKEYS.some(k=>k!=='q'&&String(S[k])!==String(DEF[k]));
- $('#count').textContent=`${list.length} of ${V.length} videos`;
+ $('#count').textContent=`${list.length} of ${V.length} videos`;$('#dlall').hidden=!list.some(v=>v.dv);
  const latest=maxRel(),feed=$('#feed');
  if(!list.length){feed.innerHTML=`<div class="empty"><p>No videos match these filters.</p><button class="btn pri" id="reset2">Clear filters</button></div>`;$('#reset2').onclick=reset;return}
  if(S.grp==='none'){feed.innerHTML=`<section class="shelf"><div class="grid">${list.map(v=>card(v,latest)).join('')}</div></section>`}
@@ -529,20 +541,48 @@ function stopPlaying(){
  if(!playing)return;const c=cardOf(playing);playing=null;
  if(c){const v=V.find(x=>x.id===c.dataset.id);c.classList.remove('playing');c.querySelector('.th').innerHTML=thumbInner(v,maxRel())}
 }
+const IC={
+ play:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z" fill="#fff"/></svg>',
+ pause:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="#fff"/></svg>',
+ vol:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#fff"/><path d="M16 8.5a5 5 0 010 7M18.5 6a8.5 8.5 0 010 12" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ mute:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#fff"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ fs:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ fsOff:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ x:'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>'
+};
 function playIn(c){
  const v=V.find(x=>x.id===c.dataset.id);if(!v)return;
  if(playing===v.id)return;
  if(!v.dv){toggleInfo(c,true);return}
  stopPlaying();playing=v.id;c.classList.add('playing');
  const th=c.querySelector('.th');
- const canFs=!!(th.requestFullscreen||th.webkitRequestFullscreen);
- th.innerHTML=`<video controls playsinline autoplay preload="auto" ${canFs?'controlslist="nofullscreen" disablepictureinpicture':''} poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`+(canFs?`<a class="dlb dl" data-dl="${esc(v.id)}" href="${mp4URL(v)}" download="${esc(v.id)}.mp4" target="_blank" rel="noopener" aria-label="Download video"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><button class="fsb" aria-label="Full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></button><button class="fsx" aria-label="Exit full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>`:'');
- const vid=th.querySelector('video');let swapped=false;
+ th.innerHTML=`<video playsinline autoplay preload="auto" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>
+<div class="vc"><button class="vc-b vc-play" aria-label="Pause">${IC.pause}</button><span class="vc-t">0:00 / ${fmtDur(v.dur)}</span><input class="vc-seek" type="range" min="0" max="1000" value="0" aria-label="Seek"><button class="vc-b vc-mute" aria-label="Mute">${IC.vol}</button><button class="vc-b vc-fs" aria-label="Full screen">${IC.fs}</button></div>
+<button class="fsx" aria-label="Exit full screen">${IC.x}</button>`;
+ const vid=th.querySelector('video'),bar=th.querySelector('.vc'),pb=bar.querySelector('.vc-play'),seek=bar.querySelector('.vc-seek'),tm=bar.querySelector('.vc-t'),mb_=bar.querySelector('.vc-mute'),fb=bar.querySelector('.vc-fs');
+ let swapped=false,hideT;
  vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
   if(swapped)return;swapped=true;
   th.innerHTML=`<iframe src="https://www.dvidshub.net/video/embed/${encodeURIComponent(v.dv)}" allow="autoplay; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe>`;
  });
- vid.play().catch(()=>{});
+ const show=()=>{th.classList.add('ctl');clearTimeout(hideT);if(!vid.paused)hideT=setTimeout(()=>th.classList.remove('ctl'),2800)};
+ const sync=()=>{pb.innerHTML=vid.paused?IC.play:IC.pause;pb.setAttribute('aria-label',vid.paused?'Play':'Pause');if(vid.paused)th.classList.add('ctl')};
+ vid.addEventListener('play',()=>{sync();show()});vid.addEventListener('pause',sync);
+ vid.addEventListener('timeupdate',()=>{const d=vid.duration||v.dur||0;if(!seek.matches(':active'))seek.value=d?Math.round(vid.currentTime/d*1000):0;tm.textContent=`${fmtDur(Math.floor(vid.currentTime))} / ${fmtDur(Math.round(d))}`});
+ vid.addEventListener('click',()=>{if(vid.paused)vid.play().catch(()=>{});else if(th.classList.contains('ctl'))vid.pause();else show()});
+ pb.addEventListener('click',()=>{vid.paused?vid.play().catch(()=>{}):vid.pause();show()});
+ seek.addEventListener('input',()=>{const d=vid.duration||0;if(d)vid.currentTime=seek.value/1000*d;show()});
+ mb_.addEventListener('click',()=>{vid.muted=!vid.muted;mb_.innerHTML=vid.muted?IC.mute:IC.vol;mb_.setAttribute('aria-label',vid.muted?'Unmute':'Mute');show()});
+ fb.addEventListener('click',()=>{
+  if(fsEl()){(document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen())?.catch?.(()=>{});return}
+  if(th.requestFullscreen)th.requestFullscreen({navigationUI:'hide'}).catch(()=>{});
+  else if(th.webkitRequestFullscreen)th.webkitRequestFullscreen();
+  else if(vid.webkitEnterFullscreen)vid.webkitEnterFullscreen(); // iPhone
+  show();
+ });
+ th.querySelector('.fsx').addEventListener('click',()=>{(document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen())?.catch?.(()=>{})});
+ th.addEventListener('fullscreenchange',()=>{fb.innerHTML=fsEl()?IC.fsOff:IC.fs});
+ show();vid.play().catch(()=>{sync()});
  // if the top of the video is hidden under the header, bring it just below
  const hh=document.querySelector('header').getBoundingClientRect().height,r=th.getBoundingClientRect();
  if(r.top<hh+4||r.bottom>innerHeight)window.scrollTo({top:Math.max(0,r.top+scrollY-hh-10),behavior:'smooth'});
@@ -602,6 +642,49 @@ document.addEventListener('click',e=>{
  if(corsOK){e.preventDefault();saveVideo(v,a)}
  else toast('Opened the video file. To save it: tap ⋮ then the download arrow. Or long-press the Download button and choose “Download link”.',9000);
 },true);
+// ---- download all (the videos currently shown) ----
+let bulk=null;
+function openDlg(){
+ const vids=list.filter(v=>v.dv),n=vids.length,rels=[...new Set(vids.map(v=>v.rel))].sort((a,b)=>a-b);
+ const box=$('#dlg .dlg-box');
+ box.innerHTML=`<h2 id="dlgT">Download ${n} video${n===1?'':'s'}</h2>
+<p>These are the videos showing right now, with your filters applied. ${n>40?'All of them together is well over 10 GB, so use Wi-Fi and make sure you have the space.':'Some clips are a few hundred MB each, so Wi-Fi is best.'}</p>
+${corsOK?`<div class="row"><button class="btn pri" id="bStart">Start downloading</button><button class="btn" id="bClose">Cancel</button></div><div id="bProg" hidden><progress id="bBar" max="${n}" value="0"></progress><p class="small" id="bTxt"></p></div><p class="small">Chrome may ask to allow this site to download multiple files. Tap Allow.</p>`
+ :`<p class="small">Your browser won't let this page save files from DVIDS in one go. Two ways to get them all:</p>`}
+<p><b>Copy all video links</b><br><span class="small">Paste them into a download-manager app (for example 1DM or ADM) to grab them all at once.</span></p>
+<div class="row"><button class="btn${corsOK?'':' pri'}" id="bCopy">Copy ${n} links</button>${corsOK?'':'<button class="btn" id="bClose">Close</button>'}</div>
+<p><b>Official ZIP files on war.gov</b><br><span class="small">Each release page has a "Download Release Videos" button with every video in one ZIP.</span></p>
+<div class="row">${rels.filter(r=>REL[r]).map(r=>{const rr=String(r).padStart(2,'0');return`<a class="btn" href="https://www.war.gov/UFO/release/${rr}/" target="_blank" rel="noopener">Release ${rr}</a>`}).join('')}</div>`;
+ $('#dlg').hidden=false;
+ box.querySelector('#bClose')?.addEventListener('click',closeDlg);
+ box.querySelector('#bStart')?.addEventListener('click',()=>bulkRun(vids));
+ box.querySelector('#bCopy').addEventListener('click',e=>{
+  const txt=vids.map(mp4URL).join('\n'),b=e.currentTarget;
+  const fallback=()=>{if(!box.querySelector('textarea')){const t=document.createElement('textarea');t.value=txt;t.readOnly=true;b.parentElement.after(t);t.select()}b.textContent='Select all & copy'};
+  try{navigator.clipboard.writeText(txt).then(()=>{b.textContent=`Copied ${vids.length} links`},fallback)}catch(err){fallback()}
+ });
+}
+function closeDlg(){if(bulk){bulk.abort();bulk=null}$('#dlg').hidden=true}
+async function bulkRun(vids){
+ const box=$('#dlg .dlg-box'),bar=box.querySelector('#bBar'),txt=box.querySelector('#bTxt'),start=box.querySelector('#bStart');
+ box.querySelector('#bProg').hidden=false;start.disabled=true;start.textContent='Downloading…';
+ const ac=new AbortController();bulk=ac;let ok=0;
+ for(let i=0;i<vids.length;i++){
+  if(ac.signal.aborted)break;const v=vids[i];
+  try{
+   const r=await fetch(mp4URL(v),{mode:'cors',signal:ac.signal});if(!r.ok)throw 0;
+   const total=+r.headers.get('content-length')||0,rd=r.body.getReader(),parts=[];let got=0;
+   for(;;){const{done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;txt.textContent=`${i+1} of ${vids.length}: ${short(v.id)} ${total?Math.floor(got/total*100)+'%':mb(got)}`}
+   const url=URL.createObjectURL(new Blob(parts,{type:'video/mp4'}));const x=document.createElement('a');x.href=url;x.download=`${v.id}.mp4`;document.body.append(x);x.click();x.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);ok++;
+  }catch(err){if(ac.signal.aborted)break;txt.textContent=`Skipped ${short(v.id)} (couldn't fetch it)`}
+  bar.value=i+1;
+ }
+ bulk=null;start.textContent=ac.signal.aborted?'Stopped':'Done';
+ txt.textContent=`${ok} of ${vids.length} saved to your Downloads.`;
+}
+$('#dlall').addEventListener('click',openDlg);
+$('#dlg').addEventListener('click',e=>{if(e.target.id==='dlg')closeDlg()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#dlg').hidden)closeDlg()});
 const FKEYS=['region','q','rel','agency','sensor','dur','y1','y2','prec'];
 const setCollapsed=on=>{document.body.classList.toggle('collapsed',on);const b=$('#hdtog');b.setAttribute('aria-expanded',!on);b.setAttribute('aria-label',on?'Show filters':'Hide filters');try{localStorage.setItem('pursue-collapsed',on?'1':'')}catch(e){}};
 $('#hdtog').addEventListener('click',()=>setCollapsed(!document.body.classList.contains('collapsed')));
@@ -624,9 +707,7 @@ $('#feed').addEventListener('click',e=>{
  const c=e.target.closest('.card');if(!c)return;
  if(e.target.closest('.info a,.info button'))return;
  if(e.target.closest('a.dl'))return;
- if(e.target.closest('.fsb')){const th=c.querySelector('.th');(th.requestFullscreen?th.requestFullscreen({navigationUI:'hide'}):th.webkitRequestFullscreen()).catch?.(()=>{});return}
- if(e.target.closest('.fsx')){(document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen()).catch?.(()=>{});return}
- if(e.target.closest('.th video,.th iframe'))return;
+ if(e.target.closest('.th video,.th iframe,.vc,.fsx'))return;
  if(e.target.closest('.th')){playIn(c);return}
  if(e.target.closest('.more,.meta')){toggleInfo(c);return}
 });
