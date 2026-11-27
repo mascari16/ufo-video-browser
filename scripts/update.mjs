@@ -8,7 +8,7 @@ const SITEMAP = 'https://uapbrowser.com/sitemaps/cases-vid.xml';
 const MAX_NEW_PER_RUN = 80;
 const UA = { 'user-agent': 'ufo-video-browser updater (github.com/mascari16/ufo-video-browser)' };
 
-const full = id => (id.includes('-') ? id : 'DOW-UAP-' + id).toUpperCase();
+const full = id => (id.includes('-') ? id : 'DOW-UAP-' + id).toUpperCase().replace(/-PR0*(\d+)([A-Z]?)$/, (m, n, l) => '-PR' + n.padStart(3, '0') + l);
 const html = readFileSync('index.html', 'utf8');
 const known = new Set();
 for (const m of html.matchAll(/^\['([^']+)',/gm)) known.add(full(m[1]));
@@ -37,14 +37,52 @@ const meta = (page, prop) => {
 };
 const titleCase = s => s.replace(/\b([a-z])/g, c => c.toUpperCase()).replace(/\bU S\b/g, 'U.S.').replace(/\bOf\b/g, 'of');
 
+// ---- Source 1 (government): search DVIDS, where war.gov hosts every PURSUE video ----
+const today0 = new Date().toISOString().slice(0, 10);
+const dvidsFound = [];
+for (const q of ['DOW-UAP', 'FBI-UAP', 'LLE-UAP', 'DOE-UAP']) {
+  for (let page = 1; page <= 3; page++) {
+    const html = await get(`https://www.dvidshub.net/search/?q=%22${q}%22&filter%5Btype%5D=video&sort=date&page=${page}`);
+    if (!html) { if (page === 1) console.log(`DVIDS search unreachable for ${q}.`); break; }
+    const hits = [...html.matchAll(/\/video\/(\d{6,8})\/([a-z0-9-]*?((?:dow|fbi|lle|doe)-uap-pr\d+[a-z]?)[a-z0-9-]*)/gi)];
+    if (page === 1) console.log(`DVIDS search "${q}": ${hits.length} matching links on page 1.`);
+    let fresh = 0;
+    for (const h of hits) {
+      const id = full(h[3]);
+      if (known.has(id) || dvidsFound.some(d => d.id === id)) continue;
+      dvidsFound.push({ id, dv: h[1], slug: h[2] }); fresh++;
+    }
+    if (!hits.length || !fresh) break; // results are newest-first; stop once a page has nothing new
+  }
+}
+var dvidsAdded = [];
+for (const d of dvidsFound.slice(0, MAX_NEW_PER_RUN)) {
+  const page = await get(`https://www.dvidshub.net/video/${d.dv}`);
+  const img = page && page.match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//);
+  if (!img) { console.log(`skip ${d.id}: DVIDS page not readable`); continue; }
+  const title = (meta(page, 'og:title') || d.id).replace(/\s*[|–-]\s*DVIDS.*$/i, '').trim();
+  if (/\baudio\b/i.test(title + ' ' + d.slug)) { console.log(`skip ${d.id}: audio recording`); continue; }
+  const desc = meta(page, 'og:description') || meta(page, 'description');
+  const rest = d.slug.replace(/^.*?uap-pr\d+[a-z]?-?/i, '').replace(/^unresolved-uap-report-?/, '');
+  const yr = (rest.match(/(19|20)\d{2}/) || [''])[0];
+  const location = titleCase(rest.replace(/-?(19|20)\d{2}.*$/, '').replace(/-/g, ' ').trim());
+  dvidsAdded.push({ id: d.id, release: 0, releaseDate: today0, location, captured: yr, duration: null,
+    agency: d.id.startsWith('FBI') ? 'FBI' : d.id.startsWith('LLE') ? 'Local police' : /Middle East|Iraq|Syria|Iran/i.test(location) ? 'CENTCOM' : /China Sea|Yellow Sea|Japan|Indo/i.test(location) ? 'INDOPACOM' : 'Not stated',
+    sensor: /infrared/i.test(title + desc) ? 'IR' : 'EO/IR', title: title.slice(0, 200), description: desc.slice(0, 600),
+    dvids: img[2], dod: img[3], ym: img[1], fr: img[4], note: 'Added automatically from DVIDS; details may be refined later.' });
+  console.log(`found ${d.id} on DVIDS (${d.dv})`);
+  await new Promise(r => setTimeout(r, 400));
+}
+console.log(`DVIDS: ${dvidsFound.length} new ID(s) spotted, ${dvidsAdded.length} ready to add.`);
+
 const xml = await get(SITEMAP);
-if (!xml) { console.log('Sitemap unreachable; nothing changed.'); process.exit(0); }
-const slugs = [...new Set([...xml.matchAll(/https:\/\/uapbrowser\.com\/en\/cases\/([a-z0-9-]+)/g)].map(m => m[1]))];
+if (!xml) console.log('uapbrowser sitemap unreachable; using the other sources.');
+const slugs = [...new Set([...(xml || '').matchAll(/https:\/\/uapbrowser\.com\/en\/cases\/([a-z0-9-]+)/g)].map(m => m[1]))];
 const found = [];
 for (const slug of slugs) {
   const m = slug.match(/^((?:dow|fbi|lle|nasa|doe)-uap-pr\d+[a-z]?)(?:-(.*))?$/);
   if (!m) continue;
-  const id = m[1].toUpperCase();
+  const id = full(m[1]);
   if (known.has(id) || found.some(f => f.id === id)) continue;
   found.push({ id, slug, rest: m[2] || '' });
 }
@@ -52,7 +90,14 @@ console.log(`${slugs.length} case pages in sitemap, ${found.length} new video ID
 
 const today = new Date().toISOString().slice(0, 10);
 let added = 0, newRel = 0;
+for (const v of dvidsAdded) {
+  if (known.has(v.id)) continue;
+  if (!newRel) newRel = maxRel + 1;
+  v.release = newRel; extra.push(v); known.add(v.id); added++;
+  console.log(`added ${v.id} from DVIDS (release ${v.release})`);
+}
 for (const f of found.slice(0, MAX_NEW_PER_RUN)) {
+  if (known.has(f.id)) continue; // already picked up from DVIDS
   const page = await get(`https://uapbrowser.com/en/cases/${f.slug}`);
   if (!page) continue;
   const img = (meta(page, 'og:image').match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//) ||
@@ -111,7 +156,7 @@ for (const u of CSV_URLS) {
     const line = r.join(' | ');
     const idm = line.match(/\b((?:DOW|FBI|LLE|DOE)-UAP-PR\d+[A-Za-z]?)\b/i), dv = line.match(/dvidshub\.net\/video\/(\d+)/);
     if (!idm || !dv) continue;
-    const id = idm[1].toUpperCase();
+    const id = full(idm[1]);
     if (known.has(id) || /\baudio\b/i.test(line)) continue;
     const page = await get(`https://www.dvidshub.net/video/${dv[1]}`);
     const img = page && page.match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//);
