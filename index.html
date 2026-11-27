@@ -636,19 +636,22 @@ function playIn(c){
    if(can.width!==vid.videoWidth){can.width=vid.videoWidth;can.height=vid.videoHeight}
    cx.filter=fstr();cx.drawImage(vid,0,0,can.width,can.height);
   }
-  if(vid.requestVideoFrameCallback&&!vid.paused)vid.requestVideoFrameCallback(frame);else requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
  };
- const fstr=()=>`brightness(${ADJ.b}%) contrast(${ADJ.c}%) saturate(${ADJ.s}%)${ADJ.i?' invert(1)':''}`;
+ const fstr=()=>[ADJ.b!==100&&`brightness(${ADJ.b}%)`,ADJ.c!==100&&`contrast(${ADJ.c}%)`,ADJ.s!==100&&`saturate(${ADJ.s}%)`,ADJ.i&&'invert(1)'].filter(Boolean).join(' ')||'none';
  const looks=()=>ADJ.b!==100||ADJ.c!==100||ADJ.s!==100||ADJ.i;
+ const drawNow=()=>{if(vid.readyState>=2&&vid.videoWidth){if(can.width!==vid.videoWidth){can.width=vid.videoWidth;can.height=vid.videoHeight}cx.filter=fstr();cx.drawImage(vid,0,0,can.width,can.height)}};
  const useCanvas=()=>{
   const on=CANF&&looks();
+  if(on)drawNow(); // paint the current picture before showing the layer, so it never flashes blank
   can.hidden=!on;vid.classList.toggle('under',on);
-  if(on&&!drawing){drawing=true;frame()}
+  if(on&&!drawing){drawing=true;requestAnimationFrame(frame)}
   if(!on)drawing=false;
  };
  vid.addEventListener('play',()=>{if(drawing){drawing=false;useCanvas()}});
+ ['loadeddata','timeupdate','pause'].forEach(ev=>vid.addEventListener(ev,()=>{if(!can.hidden)drawNow()}));
  vid.addEventListener('seeked',()=>{if(drawing&&vid.paused)requestAnimationFrame(()=>{if(vid.readyState>=2){cx.filter=fstr();cx.drawImage(vid,0,0,can.width,can.height)}})});
- const paint=()=>{const a=ADJ;vid.style.filter=CANF?'':fstr();useCanvas();
+ const paint=()=>{const a=ADJ;vid.style.filter=CANF||!looks()?'':fstr();useCanvas();
   const z=a.z/100,mx=(z-1)*50;a.px=Math.max(-mx,Math.min(mx,a.px));a.py=Math.max(-mx,Math.min(mx,a.py));
   vid.style.transform=can.style.transform=z>1?`translate(${a.px}%,${a.py}%) scale(${z})`:'';vid.playbackRate=a.r/100;
   panel.querySelectorAll('.sl').forEach(sl=>{const k=sl.dataset.k,mn=+sl.dataset.min,mx=+sl.dataset.max,pct=(a[k]-mn)/(mx-mn)*100,th_=sl.querySelector('.sl-th');th_.style.left=pct+'%';sl.querySelector('.sl-fill').style.width=pct+'%';th_.setAttribute('aria-valuenow',a[k]);const t=k==='z'||k==='r'?(a[k]/100)+'×':a[k]+'%';th_.setAttribute('aria-valuetext',t);sl.nextElementSibling.textContent=t});
