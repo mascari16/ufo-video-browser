@@ -75,6 +75,19 @@ main{padding:8px max(3vw,14px) 40px}
 .th.ctl .vc{opacity:1;pointer-events:auto}
 .vc-b{flex:none;width:40px;height:40px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;border-radius:8px}
 .vc-t{flex:none;color:#fff;font:500 12px Roboto;white-space:nowrap;padding:0 4px;font-variant-numeric:tabular-nums}
+.vc-adj.on{background:var(--acc)}
+.card>.adj{margin-top:8px;background:#161616}
+.th>.adj{position:absolute;z-index:4;right:max(12px,env(safe-area-inset-right));bottom:72px;width:min(320px,calc(100% - 24px));max-height:calc(100% - 90px);overflow:auto;background:rgba(15,15,15,.85)}
+.adj{color:#fff;border-radius:12px;padding:10px 12px;font:500 13px Roboto;-webkit-user-select:none;user-select:none}
+.adj[hidden]{display:none}
+.adj label{display:grid;grid-template-columns:78px minmax(0,1fr) 42px;align-items:center;gap:8px;min-height:34px}
+.adj input{width:100%;accent-color:var(--acc);height:28px}
+.adj output{text-align:right;font-variant-numeric:tabular-nums;color:#ddd}
+.adj-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.adj-b{border:0;border-radius:16px;padding:8px 12px;min-height:36px;background:rgba(255,255,255,.14);color:#fff;font:500 13px Roboto;cursor:pointer}
+.adj-b[aria-pressed=true]{background:var(--acc)}
+.th.adjopen .vc{opacity:1;pointer-events:auto}
+.th>video{transform-origin:center;transition:transform .05s linear}
 .vc-seek{flex:1;min-width:40px;height:28px;accent-color:var(--acc);background:transparent;margin:0 4px}
 #toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:50;max-width:min(92vw,460px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
 #toast[hidden]{display:none}
@@ -546,8 +559,12 @@ function toggleInfo(c,force){
 }
 function stopPlaying(){
  if(!playing)return;const c=cardOf(playing);playing=null;
- if(c){const v=V.find(x=>x.id===c.dataset.id);c.classList.remove('playing');c.querySelector('.th').innerHTML=thumbInner(v,maxRel())}
+ if(c){c.querySelector(':scope>.adj')?.remove();const v=V.find(x=>x.id===c.dataset.id);c.classList.remove('playing');c.querySelector('.th').innerHTML=thumbInner(v,maxRel())}
 }
+const ADJ0={b:100,c:100,s:100,z:100,r:100,i:false,px:0,py:0};
+let ADJ={...ADJ0};try{Object.assign(ADJ,JSON.parse(localStorage.getItem('pursue-adj')||'{}'),{px:0,py:0})}catch(e){}
+const adjChanged=()=>['b','c','s','z','r','i'].some(k=>ADJ[k]!==ADJ0[k]);
+const saveAdj=()=>{try{localStorage.setItem('pursue-adj',JSON.stringify({...ADJ,px:0,py:0}))}catch(e){}};
 const IC={
  play:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z" fill="#fff"/></svg>',
  pause:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="#fff"/></svg>',
@@ -555,6 +572,7 @@ const IC={
  mute:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#fff"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
  fs:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>',
  fsOff:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ adj:'<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 4a8 8 0 010 16z" fill="#fff"/></svg>',
  x:'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>'
 };
 function playIn(c){
@@ -564,12 +582,20 @@ function playIn(c){
  stopPlaying();playing=v.id;c.classList.add('playing');
  const th=c.querySelector('.th');
  th.innerHTML=`<video playsinline autoplay preload="auto" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>
-<div class="vc"><button class="vc-b vc-play" aria-label="Pause">${IC.pause}</button><span class="vc-t">0:00 / ${fmtDur(v.dur)}</span><input class="vc-seek" type="range" min="0" max="1000" value="0" aria-label="Seek"><button class="vc-b vc-mute" aria-label="Mute">${IC.vol}</button><button class="vc-b vc-fs" aria-label="Full screen">${IC.fs}</button></div>
-<button class="fsx" aria-label="Exit full screen">${IC.x}</button>`;
+<div class="vc"><button class="vc-b vc-play" aria-label="Pause">${IC.pause}</button><span class="vc-t">0:00 / ${fmtDur(v.dur)}</span><input class="vc-seek" type="range" min="0" max="1000" value="0" aria-label="Seek"><button class="vc-b vc-adj" aria-label="Adjust picture" aria-expanded="false">${IC.adj}</button><button class="vc-b vc-mute" aria-label="Mute">${IC.vol}</button><button class="vc-b vc-fs" aria-label="Full screen">${IC.fs}</button></div>
+<button class="fsx" aria-label="Exit full screen">${IC.x}</button>
+<div class="adj" hidden>
+<label>Brightness<input type="range" data-k="b" min="20" max="300" step="5"><output></output></label>
+<label>Contrast<input type="range" data-k="c" min="20" max="300" step="5"><output></output></label>
+<label>Saturation<input type="range" data-k="s" min="0" max="300" step="5"><output></output></label>
+<label>Zoom<input type="range" data-k="z" min="100" max="400" step="10"><output></output></label>
+<label>Speed<input type="range" data-k="r" min="25" max="200" step="25"><output></output></label>
+<div class="adj-row"><button class="adj-b" data-act="inv" aria-pressed="false">Invert (white-hot ⇄ black-hot)</button><button class="adj-b" data-act="reset">Reset</button></div>
+</div>`;
  const vid=th.querySelector('video'),bar=th.querySelector('.vc'),pb=bar.querySelector('.vc-play'),seek=bar.querySelector('.vc-seek'),tm=bar.querySelector('.vc-t'),mb_=bar.querySelector('.vc-mute'),fb=bar.querySelector('.vc-fs');
  let swapped=false,hideT;
  vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
-  if(swapped)return;swapped=true;
+  if(swapped)return;swapped=true;c.querySelector(':scope>.adj')?.remove();
   th.innerHTML=`<iframe src="https://www.dvidshub.net/video/embed/${encodeURIComponent(v.dv)}" allow="autoplay; fullscreen" allowfullscreen title="${esc(v.title)}"></iframe>`;
  });
  const show=()=>{th.classList.add('ctl');clearTimeout(hideT);if(!vid.paused)hideT=setTimeout(()=>th.classList.remove('ctl'),2800)};
@@ -588,7 +614,26 @@ function playIn(c){
   show();
  });
  th.querySelector('.fsx').addEventListener('click',()=>{(document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen())?.catch?.(()=>{})});
- th.addEventListener('fullscreenchange',()=>{fb.innerHTML=fsEl()?IC.fsOff:IC.fs});
+ th.addEventListener('fullscreenchange',()=>{fb.innerHTML=fsEl()?IC.fsOff:IC.fs;dock&&dock()});
+ // ---- picture adjustments ----
+ const panel=th.querySelector('.adj'),ab=bar.querySelector('.vc-adj');
+ const dock=()=>{if(fsEl()===th){if(panel.parentElement!==th)th.append(panel)}else if(panel.parentElement===th)th.after(panel)};dock();
+ const paint=()=>{const a=ADJ;vid.style.filter=`brightness(${a.b}%) contrast(${a.c}%) saturate(${a.s}%)${a.i?' invert(1)':''}`;
+  const z=a.z/100,mx=(z-1)*50;a.px=Math.max(-mx,Math.min(mx,a.px));a.py=Math.max(-mx,Math.min(mx,a.py));
+  vid.style.transform=z>1?`translate(${a.px}%,${a.py}%) scale(${z})`:'';vid.playbackRate=a.r/100;
+  panel.querySelectorAll('input').forEach(r=>{r.value=a[r.dataset.k];r.nextElementSibling.textContent=r.dataset.k==='z'||r.dataset.k==='r'?(a[r.dataset.k]/100)+'×':a[r.dataset.k]+'%'});
+  panel.querySelector('[data-act=inv]').setAttribute('aria-pressed',!!a.i);
+  ab.classList.toggle('on',adjChanged());saveAdj()};
+ panel.addEventListener('input',e=>{const r=e.target.closest('input');if(!r)return;ADJ[r.dataset.k]=+r.value;if(r.dataset.k==='z'&&+r.value===100){ADJ.px=0;ADJ.py=0}paint();show()});
+ panel.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;if(b.dataset.act==='inv')ADJ.i=!ADJ.i;else Object.assign(ADJ,ADJ0);paint();show()});
+ ab.addEventListener('click',()=>{panel.hidden=!panel.hidden;ab.setAttribute('aria-expanded',!panel.hidden);th.classList.toggle('adjopen',!panel.hidden);show()});
+ vid.addEventListener('loadedmetadata',paint);paint();
+ // drag to pan while zoomed (a short tap still plays/pauses)
+ let drag=null,moved=false;
+ vid.addEventListener('pointerdown',e=>{moved=false;if(ADJ.z>100)drag={x:e.clientX,y:e.clientY,px:ADJ.px,py:ADJ.py,w:th.clientWidth,h:th.clientHeight}});
+ vid.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>6)moved=true;if(moved){ADJ.px=drag.px+dx/drag.w*100;ADJ.py=drag.py+dy/drag.h*100;paint()}});
+ const endDrag=()=>{drag=null};vid.addEventListener('pointerup',endDrag);vid.addEventListener('pointercancel',endDrag);
+ vid.addEventListener('click',e=>{if(moved){e.stopImmediatePropagation();moved=false}},true);
  show();vid.play().catch(()=>{sync()});
  // if the top of the video is hidden under the header, bring it just below
  const hh=document.querySelector('header').getBoundingClientRect().height,r=th.getBoundingClientRect();
@@ -717,7 +762,7 @@ $('#feed').addEventListener('click',e=>{
  const c=e.target.closest('.card');if(!c)return;
  if(e.target.closest('.info a,.info button'))return;
  if(e.target.closest('a.dl'))return;
- if(e.target.closest('.th video,.th iframe,.vc,.fsx'))return;
+ if(e.target.closest('.th video,.th iframe,.vc,.fsx,.adj'))return;
  if(e.target.closest('.th')){playIn(c);return}
  if(e.target.closest('.more,.meta')){toggleInfo(c);return}
 });
