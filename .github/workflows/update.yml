@@ -25,6 +25,8 @@ jobs:
           node-version: 20
       - name: Look for new videos
         run: node scripts/update.mjs
+        env:
+          DVIDS_API_KEY: ${{ secrets.DVIDS_API_KEY }}
       - name: Commit if anything changed
         run: |
           git config user.name "github-actions[bot]"

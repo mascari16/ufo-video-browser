@@ -37,6 +37,42 @@ const meta = (page, prop) => {
 };
 const titleCase = s => s.replace(/\b([a-z])/g, c => c.toUpperCase()).replace(/\bU S\b/g, 'U.S.').replace(/\bOf\b/g, 'of');
 
+// ---- Source 0 (government, official API): DVIDS API, used when a free key is saved as the DVIDS_API_KEY secret ----
+const API_KEY = process.env.DVIDS_API_KEY || '';
+const dvidsAdded0 = [];
+const apiFound = [];
+if (API_KEY) {
+  for (const q of ['DOW-UAP', 'FBI-UAP', 'LLE-UAP', 'DOE-UAP']) {
+    const txt = await get(`https://api.dvidshub.net/search?api_key=${encodeURIComponent(API_KEY)}&q=${encodeURIComponent('"' + q + '"')}&type[]=video&sort=date&sortdir=desc&max_results=50`);
+    if (!txt) { console.log(`DVIDS API: no answer for ${q} (check the key).`); continue; }
+    let data; try { data = JSON.parse(txt); } catch { console.log('DVIDS API: unexpected reply.'); continue; }
+    const items = data.results || data.items || [];
+    console.log(`DVIDS API "${q}": ${items.length} result(s).`);
+    for (const it of items) {
+      const blob = JSON.stringify(it);
+      const idm = blob.match(/\b((?:DOW|FBI|LLE|DOE)-UAP-PR\d+[A-Za-z]?)\b/i), dvm = String(it.id || '').match(/(\d{6,8})/) || blob.match(/dvidshub\.net\/video\/(\d{6,8})/);
+      if (!idm || !dvm) continue;
+      const id = full(idm[1]);
+      if (known.has(id) || apiFound.some(a => a.id === id) || /\baudio\b/i.test(it.title || '')) continue;
+      apiFound.push({ id, dv: dvm[1], title: it.title || id, desc: it.description || it.short_description || '', blob });
+    }
+  }
+  for (const a of apiFound.slice(0, MAX_NEW_PER_RUN)) {
+    let blob = a.blob, img = blob.match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//);
+    if (!img) { blob = await get(`https://api.dvidshub.net/asset?api_key=${encodeURIComponent(API_KEY)}&id=video:${a.dv}`); img = blob && blob.match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//); }
+    let ym, dod, fr = '1';
+    if (img) { ym = img[1]; dod = img[3]; fr = img[4]; }
+    else { const f = (blob || '').match(/video\/(\d{4})\/DOD_(\d+)\//); if (f) { ym = f[1]; dod = f[2]; } }
+    if (!ym || !dod) { console.log(`skip ${a.id}: DVIDS API gave no file details yet`); continue; }
+    const loc = (a.title.match(/Report,\s*([^,]+),/) || [])[1] || '', yr = (a.title.match(/(19|20)\d{2}/) || [''])[0];
+    dvidsAdded0.push({ id: a.id, release: 0, releaseDate: new Date().toISOString().slice(0, 10), location: loc.trim(), captured: yr, duration: null,
+      agency: a.id.startsWith('FBI') ? 'FBI' : a.id.startsWith('LLE') ? 'Local police' : /Middle East|Iraq|Syria|Iran/i.test(loc) ? 'CENTCOM' : /China Sea|Yellow Sea|Japan|Indo/i.test(loc) ? 'INDOPACOM' : 'Not stated',
+      sensor: /infrared/i.test(a.title + a.desc) ? 'IR' : 'EO/IR', title: a.title.slice(0, 200), description: String(a.desc).slice(0, 600),
+      dvids: a.dv, dod, ym, fr, note: 'Added automatically from the DVIDS API; details may be refined later.' });
+    console.log(`found ${a.id} via DVIDS API (${a.dv})`);
+  }
+} else console.log('DVIDS API key not set; skipping the official API.');
+
 // ---- Source 1 (government): search DVIDS, where war.gov hosts every PURSUE video ----
 const today0 = new Date().toISOString().slice(0, 10);
 const dvidsFound = [];
@@ -90,7 +126,7 @@ console.log(`${slugs.length} case pages in sitemap, ${found.length} new video ID
 
 const today = new Date().toISOString().slice(0, 10);
 let added = 0, newRel = 0;
-for (const v of dvidsAdded) {
+for (const v of [...dvidsAdded0, ...dvidsAdded]) {
   if (known.has(v.id)) continue;
   if (!newRel) newRel = maxRel + 1;
   v.release = newRel; extra.push(v); known.add(v.id); added++;
