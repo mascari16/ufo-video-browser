@@ -66,6 +66,11 @@ main{padding:8px max(3vw,14px) 40px}
 @media (prefers-reduced-motion:reduce){.card:hover .scan{animation:none}.th{transition:none}}
 .grid{align-items:start}
 .fsb,.fsx{position:absolute;z-index:3;border:0;display:grid;place-items:center;cursor:pointer;color:#fff;background:rgba(0,0,0,.55)}
+.dlb{position:absolute;z-index:3;top:8px;right:56px;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:#fff;background:rgba(0,0,0,.55);text-decoration:none}
+.th:fullscreen .dlb,.th:-webkit-full-screen .dlb{display:none}
+.dlb.busy{width:auto;padding:0 10px;font:500 13px Roboto}
+#toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:50;max-width:min(92vw,460px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.3)}
+#toast[hidden]{display:none}
 .fsb{top:8px;right:8px;width:40px;height:40px;border-radius:10px}
 .fsx{display:none;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));width:48px;height:48px;border-radius:50%}
 .th:fullscreen{border-radius:0;aspect-ratio:auto;width:100%;height:100%;background:#000;box-shadow:none}
@@ -171,6 +176,7 @@ textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--ch
  <span class="count" id="count" aria-live="polite"></span>
 </div>
 
+<div id="toast" role="status" hidden></div>
 <main>
  <div id="feed"></div>
 
@@ -504,6 +510,7 @@ ${v.note?`<p class="note">${esc(v.note)}</p>`:''}
 <dt>Length</dt><dd>${v.dur==null?'Not listed':esc(fmtDur(v.dur))+` (${v.dur} s)`}</dd>
 </dl>
 <div class="acts">
+${v.dv?`<a class="btn pri dl" data-dl="${esc(v.id)}" href="${mp4URL(v)}" download="${esc(v.id)}.mp4" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Download</span></a>`:''}
 ${v.dv?`<a class="btn" href="${dvidsURL(v)}" target="_blank" rel="noopener">Open on DVIDS</a>`:''}
 ${yt?`<a class="btn" href="${yt}" target="_blank" rel="noopener">YouTube</a>`:''}
 ${v.dv?'':`<a class="btn pri" href="https://www.war.gov/UFO/?type=.vid" target="_blank" rel="noopener">Find it on war.gov</a>`}
@@ -529,7 +536,7 @@ function playIn(c){
  stopPlaying();playing=v.id;c.classList.add('playing');
  const th=c.querySelector('.th');
  const canFs=!!(th.requestFullscreen||th.webkitRequestFullscreen);
- th.innerHTML=`<video controls playsinline autoplay preload="auto" ${canFs?'controlslist="nofullscreen" disablepictureinpicture':''} poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`+(canFs?`<button class="fsb" aria-label="Full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></button><button class="fsx" aria-label="Exit full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>`:'');
+ th.innerHTML=`<video controls playsinline autoplay preload="auto" ${canFs?'controlslist="nofullscreen" disablepictureinpicture':''} poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`+(canFs?`<a class="dlb dl" data-dl="${esc(v.id)}" href="${mp4URL(v)}" download="${esc(v.id)}.mp4" target="_blank" rel="noopener" aria-label="Download video"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><button class="fsb" aria-label="Full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></button><button class="fsx" aria-label="Exit full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>`:'');
  const vid=th.querySelector('video');let swapped=false;
  vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
   if(swapped)return;swapped=true;
@@ -568,6 +575,33 @@ function dirs(){
 }
 function reset(){Object.assign(S,{...DEF,k1:S.k1,d1:S.d1,k2:S.k2,d2:S.d2,grp:S.grp});controls();render()}
 
+let toastT;const toast=(t,ms=6000)=>{const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true},ms)};
+// can we save DVIDS files directly? (needs their server to allow cross-site reads)
+let corsOK=false;{const t=V.find(v=>v.dv);if(t)fetch(mp4URL(t),{method:'HEAD',mode:'cors'}).then(r=>{corsOK=r.ok}).catch(()=>{corsOK=false})}
+const mb=n=>(n/1048576).toFixed(n>1e8?0:1)+' MB';
+async function saveVideo(v,a){
+ if(a.dataset.busy)return;a.dataset.busy='1';
+ const lab=a.querySelector('span'),orig=lab?lab.textContent:'';const set=t=>{if(lab)lab.textContent=t;else{a.classList.add('busy');a.textContent=t}};
+ try{
+  const r=await fetch(mp4URL(v),{mode:'cors'});if(!r.ok)throw new Error(r.status);
+  const total=+r.headers.get('content-length')||0,rd=r.body.getReader(),parts=[];let got=0;
+  for(;;){const{done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;set(total?`${Math.floor(got/total*100)}%`:mb(got))}
+  const url=URL.createObjectURL(new Blob(parts,{type:'video/mp4'}));
+  const x=document.createElement('a');x.href=url;x.download=`${v.id}.mp4`;document.body.append(x);x.click();x.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  toast(`Saved ${v.id}.mp4 (${mb(got)}) to your Downloads.`);
+ }catch(err){
+  toast('Couldn’t save directly. Opening the video file instead: tap ⋮ then the download arrow to save it.');
+  window.open(mp4URL(v),'_blank','noopener');
+ }finally{delete a.dataset.busy;if(lab)lab.textContent=orig;else{a.classList.remove('busy');a.innerHTML=a.dataset.icon||a.innerHTML}}
+}
+document.addEventListener('click',e=>{
+ const a=e.target.closest('a.dl');if(!a)return;
+ const v=V.find(x=>x.id===a.dataset.dl);if(!v)return;
+ if(!a.querySelector('span'))a.dataset.icon=a.dataset.icon||a.innerHTML;
+ if(corsOK){e.preventDefault();saveVideo(v,a)}
+ else toast('Opened the video file. To save it: tap ⋮ then the download arrow. Or long-press the Download button and choose “Download link”.',9000);
+},true);
 const FKEYS=['region','q','rel','agency','sensor','dur','y1','y2','prec'];
 const setCollapsed=on=>{document.body.classList.toggle('collapsed',on);const b=$('#hdtog');b.setAttribute('aria-expanded',!on);b.setAttribute('aria-label',on?'Show filters':'Hide filters');try{localStorage.setItem('pursue-collapsed',on?'1':'')}catch(e){}};
 $('#hdtog').addEventListener('click',()=>setCollapsed(!document.body.classList.contains('collapsed')));
@@ -589,6 +623,7 @@ if(matchMedia('(max-width:760px)').matches)$('#bar').classList.add('shut');
 $('#feed').addEventListener('click',e=>{
  const c=e.target.closest('.card');if(!c)return;
  if(e.target.closest('.info a,.info button'))return;
+ if(e.target.closest('a.dl'))return;
  if(e.target.closest('.fsb')){const th=c.querySelector('.th');(th.requestFullscreen?th.requestFullscreen({navigationUI:'hide'}):th.webkitRequestFullscreen()).catch?.(()=>{});return}
  if(e.target.closest('.fsx')){(document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen()).catch?.(()=>{});return}
  if(e.target.closest('.th video,.th iframe'))return;
