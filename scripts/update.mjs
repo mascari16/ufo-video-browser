@@ -58,6 +58,7 @@ for (const f of found.slice(0, MAX_NEW_PER_RUN)) {
   const img = (meta(page, 'og:image').match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//) ||
                page.match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//));
   if (!img) { console.log(`skip ${f.id}: no DVIDS thumbnail (probably audio or not posted yet)`); continue; }
+  if (/\baudio\b/i.test(meta(page, 'og:title') + ' ' + f.slug)) { console.log(`skip ${f.id}: audio recording`); continue; }
   const [, ym, dvids, dod, fr] = img;
   const title = meta(page, 'og:title').replace(/\s*[|–-]\s*UAP ?Browser.*$/i, '').trim();
   const desc = meta(page, 'og:description') || meta(page, 'description');
@@ -84,6 +85,54 @@ for (const f of found.slice(0, MAX_NEW_PER_RUN)) {
   await new Promise(r => setTimeout(r, 400));
 }
 
+// ---- Source B: war.gov's own catalog CSV → each video's DVIDS page ----
+function parseCSV(t) {
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && t[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+const CSV_URLS = ['https://www.war.gov/Portals/1/Interactive/2026/UFO/uap-csv.csv'];
+for (const u of CSV_URLS) {
+  const txt = await get(u);
+  if (!txt || !/UAP/i.test(txt)) { console.log(`war.gov catalog unreachable or empty (${u}); relying on the other source.`); continue; }
+  const rows = parseCSV(txt), head = (rows.shift() || []).map(h => h.toLowerCase());
+  const col = (...names) => head.findIndex(h => names.some(n => h.includes(n)));
+  const cLoc = col('location'), cInc = col('incident date', 'incident'), cRel = col('release'), cAg = col('agency'), cTitle = col('title', 'name'), cDesc = col('description', 'summary');
+  let n = 0;
+  for (const r of rows) {
+    const line = r.join(' | ');
+    const idm = line.match(/\b((?:DOW|FBI|LLE|DOE)-UAP-PR\d+[A-Za-z]?)\b/i), dv = line.match(/dvidshub\.net\/video\/(\d+)/);
+    if (!idm || !dv) continue;
+    const id = idm[1].toUpperCase();
+    if (known.has(id) || /\baudio\b/i.test(line)) continue;
+    const page = await get(`https://www.dvidshub.net/video/${dv[1]}`);
+    const img = page && page.match(/thumbs\/frames\/video\/(\d{4})\/(\d+)\/DOD_(\d+)\.0*(\d+)\//);
+    if (!img) { console.log(`skip ${id}: DVIDS page not readable yet`); continue; }
+    const relRaw = cRel >= 0 ? r[cRel] : '', relNum = +(relRaw.match(/\b0?(\d{1,2})\b/) || [])[1] || 0;
+    const relDate = (relRaw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/) || []);
+    const releaseDate = relDate.length ? `${relDate[3].length === 2 ? '20' + relDate[3] : relDate[3]}-${relDate[1].padStart(2, '0')}-${relDate[2].padStart(2, '0')}` : today;
+    let release = relNum && relNum < 50 && !relDate.length ? relNum : 0;
+    if (!release) { if (!newRel) newRel = maxRel + 1; release = newRel; }
+    const inc = cInc >= 0 ? r[cInc] : '', yr = (inc.match(/(19|20)\d{2}/) || [''])[0] || ((inc.match(/\/(\d{2})$/) || [])[1] ? '20' + inc.match(/\/(\d{2})$/)[1] : '');
+    const title = (cTitle >= 0 ? r[cTitle] : '') || id, desc = cDesc >= 0 ? r[cDesc] : '';
+    const location = cLoc >= 0 ? r[cLoc] : '';
+    extra.push({ id, release, releaseDate, location, captured: yr, duration: null, agency: (cAg >= 0 ? r[cAg] : '') || 'Not stated',
+      sensor: /infrared/i.test(title + desc) ? 'IR' : 'EO/IR', title, description: desc.slice(0, 600), dvids: img[2], dod: img[3], ym: img[1], fr: img[4],
+      note: 'Added automatically from the war.gov catalog; details may be refined later.' });
+    known.add(id); added++; n++;
+    console.log(`added ${id} from war.gov catalog (DVIDS ${img[2]})`);
+  }
+  console.log(`war.gov catalog: ${rows.length} rows read, ${n} new video(s).`);
+}
+
 if (added) {
   writeFileSync(extraPath, JSON.stringify(extra, null, 1) + '\n');
   console.log(`Wrote ${added} new video(s) to ${extraPath}.`);
@@ -91,3 +140,6 @@ if (added) {
   if (!existsSync(extraPath)) writeFileSync(extraPath, '[]\n');
   console.log('No new videos.');
 }
+const hb = 'last-check.json', prev = existsSync(hb) ? JSON.parse(readFileSync(hb, 'utf8')) : {};
+const stale = !prev.heartbeat || (Date.now() - Date.parse(prev.heartbeat)) > 25 * 864e5;
+if (added || stale) writeFileSync(hb, JSON.stringify({ heartbeat: new Date().toISOString(), lastAdded: added ? today : (prev.lastAdded || null) }, null, 1) + '\n');

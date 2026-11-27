@@ -22,5 +22,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
-          git add extra.json
+          git add extra.json last-check.json 2>/dev/null || git add extra.json
           if git diff --cached --quiet; then echo "No changes."; else git commit -m "Add newly released videos" && git push; fi
