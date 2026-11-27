@@ -642,6 +642,9 @@ document.addEventListener('click',e=>{
  if(corsOK){e.preventDefault();saveVideo(v,a)}
  else toast('Opened the video file. To save it: tap ⋮ then the download arrow. Or long-press the Download button and choose “Download link”.',9000);
 },true);
+// official per-release video ZIPs (direct files on the DVIDS/war.gov CDN)
+const CDN='https://d34w7g4gy10iej.cloudfront.net/';
+const ZIPS={1:[CDN+'uapvideos.zip','1.3 GB'],2:[CDN+'uap052226.zip','5.6 GB'],3:[CDN+'release_03/uap_videos_061226.zip','4.6 GB'],4:[CDN+'release_04/uap_release04_videos_071026.zip','1.4 GB'],5:[CDN+'release_05/uap_videos_080726.zip',''],6:[CDN+'release_06/pursue_vids_091826.zip',''],8:[CDN+'release_08/videos_112026_uap.zip','']};
 // ---- download all (the videos currently shown) ----
 let bulk=null;
 function openDlg(){
@@ -653,8 +656,8 @@ ${corsOK?`<div class="row"><button class="btn pri" id="bStart">Start downloading
  :`<p class="small">Your browser won't let this page save files from DVIDS in one go. Two ways to get them all:</p>`}
 <p><b>Copy all video links</b><br><span class="small">Paste them into a download-manager app (for example 1DM or ADM) to grab them all at once.</span></p>
 <div class="row"><button class="btn${corsOK?'':' pri'}" id="bCopy">Copy ${n} links</button>${corsOK?'':'<button class="btn" id="bClose">Close</button>'}</div>
-<p><b>Official ZIP files on war.gov</b><br><span class="small">Each release page has a "Download Release Videos" button with every video in one ZIP.</span></p>
-<div class="row">${rels.filter(r=>REL[r]).map(r=>{const rr=String(r).padStart(2,'0');return`<a class="btn" href="https://www.war.gov/UFO/release/${rr}/" target="_blank" rel="noopener">Release ${rr}</a>`}).join('')}</div>`;
+<p><b>Official ZIP files</b><br><span class="small">Each button downloads that whole release's videos as one ZIP file, straight from the government's servers. Unzip it with your phone's Files app.</span></p>
+<div class="row">${rels.map(r=>{const rr=String(r).padStart(2,'0'),z=ZIPS[r];return z?`<a class="btn" href="${z[0]}" download>Release ${rr}${z[1]?` · ${z[1]}`:''}</a>`:`<a class="btn" href="https://www.war.gov/UFO/release/${rr}/" target="_blank" rel="noopener">Release ${rr} (war.gov page)</a>`}).join('')}</div>`;
  $('#dlg').hidden=false;
  box.querySelector('#bClose')?.addEventListener('click',closeDlg);
  box.querySelector('#bStart')?.addEventListener('click',()=>bulkRun(vids));
