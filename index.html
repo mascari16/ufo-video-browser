@@ -27,6 +27,11 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px s
 .search{flex:1;max-width:620px;margin-inline:auto;display:flex}
 .search input{flex:1;height:42px;border:1px solid var(--chip2);border-radius:21px 0 0 21px;padding:0 16px;background:var(--bg);font-size:16px}
 .search button{width:60px;border:1px solid var(--chip2);border-left:0;border-radius:0 21px 21px 0;background:var(--chip);cursor:pointer}
+.hdtog{position:relative;flex:none;width:44px;height:42px;border-radius:21px;border:0;background:var(--chip);cursor:pointer;display:grid;place-items:center}
+.hdtog[aria-expanded=true]{background:var(--ink);color:var(--bg)}
+.hdtog .dot{position:absolute;top:7px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 2px var(--bg)}
+.hdtog .dot[hidden]{display:none}
+body.collapsed #chips,body.collapsed #relchips,body.collapsed #bar{display:none}
 .chips{display:flex;gap:10px;overflow-x:auto;padding:4px max(3vw,14px) 10px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;height:34px;padding:0 13px;border-radius:8px;border:0;background:var(--chip);cursor:pointer;font-weight:500;white-space:nowrap}
@@ -60,6 +65,14 @@ main{padding:8px max(3vw,14px) 40px}
 @keyframes scan{to{transform:translateY(400%)}}
 @media (prefers-reduced-motion:reduce){.card:hover .scan{animation:none}.th{transition:none}}
 .grid{align-items:start}
+.fsb,.fsx{position:absolute;z-index:3;border:0;display:grid;place-items:center;cursor:pointer;color:#fff;background:rgba(0,0,0,.55)}
+.fsb{top:8px;right:8px;width:40px;height:40px;border-radius:10px}
+.fsx{display:none;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));width:48px;height:48px;border-radius:50%}
+.th:fullscreen{border-radius:0;aspect-ratio:auto;width:100%;height:100%;background:#000;box-shadow:none}
+.th:-webkit-full-screen{border-radius:0;width:100%;height:100%;background:#000}
+.th:fullscreen video{object-fit:contain}.th:-webkit-full-screen video{object-fit:contain}
+.th:fullscreen .fsx,.th:-webkit-full-screen .fsx{display:grid}
+.th:fullscreen .fsb,.th:-webkit-full-screen .fsb{display:none}
 .th iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
 .card.playing .th{border-radius:12px;box-shadow:0 0 0 2px var(--acc)}
 .pl{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(0,0,0,.55);display:grid;place-items:center;transition:background .15s}
@@ -133,6 +146,7 @@ textarea{width:100%;min-height:120px;border-radius:8px;border:1px solid var(--ch
    <input id="q" type="search" placeholder="Search ID, place, object, agency…" aria-label="Search videos" autocomplete="off">
    <button aria-label="Search"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l6 6" stroke="currentColor" stroke-width="2"/></svg></button>
   </form>
+  <button class="hdtog" id="hdtog" aria-expanded="true" aria-controls="chips relchips bar" aria-label="Hide filters"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg><span class="dot" hidden></span></button>
  </div>
  <div class="chips" id="chips" role="toolbar" aria-label="Filter by region"></div>
  <div class="chips rels" id="relchips" role="toolbar" aria-label="Filter by release"></div>
@@ -463,6 +477,7 @@ let list=[];
 function render(){
  if(fsEl())return; // never rebuild while a video is fullscreen
  list=filtered();save();playing=null;
+ $('#hdtog .dot').hidden=!FKEYS.some(k=>k!=='q'&&String(S[k])!==String(DEF[k]));
  $('#count').textContent=`${list.length} of ${V.length} videos`;
  const latest=maxRel(),feed=$('#feed');
  if(!list.length){feed.innerHTML=`<div class="empty"><p>No videos match these filters.</p><button class="btn pri" id="reset2">Clear filters</button></div>`;$('#reset2').onclick=reset;return}
@@ -513,7 +528,8 @@ function playIn(c){
  if(!v.dv){toggleInfo(c,true);return}
  stopPlaying();playing=v.id;c.classList.add('playing');
  const th=c.querySelector('.th');
- th.innerHTML=`<video controls playsinline autoplay preload="auto" poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`;
+ const canFs=!!(th.requestFullscreen||th.webkitRequestFullscreen);
+ th.innerHTML=`<video controls playsinline autoplay preload="auto" ${canFs?'controlslist="nofullscreen" disablepictureinpicture':''} poster="${thumbURL(v)}" src="${mp4URL(v)}"></video>`+(canFs?`<button class="fsb" aria-label="Full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></button><button class="fsx" aria-label="Exit full screen"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>`:'');
  const vid=th.querySelector('video');let swapped=false;
  vid.addEventListener('error',()=>{ // direct file refused → DVIDS's own embedded player
   if(swapped)return;swapped=true;
@@ -552,6 +568,10 @@ function dirs(){
 }
 function reset(){Object.assign(S,{...DEF,k1:S.k1,d1:S.d1,k2:S.k2,d2:S.d2,grp:S.grp});controls();render()}
 
+const FKEYS=['region','q','rel','agency','sensor','dur','y1','y2','prec'];
+const setCollapsed=on=>{document.body.classList.toggle('collapsed',on);const b=$('#hdtog');b.setAttribute('aria-expanded',!on);b.setAttribute('aria-label',on?'Show filters':'Hide filters');try{localStorage.setItem('pursue-collapsed',on?'1':'')}catch(e){}};
+$('#hdtog').addEventListener('click',()=>setCollapsed(!document.body.classList.contains('collapsed')));
+try{if(localStorage.getItem('pursue-collapsed'))setCollapsed(true)}catch(e){}
 $('#chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.region=b.dataset.r;document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
 $('#relchips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S.rel=b.dataset.rel;$('#rel').value=S.rel;document.querySelectorAll('#relchips .chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render()});
 $('#rel').addEventListener('change',()=>{document.querySelectorAll('#relchips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.rel===String(S.rel)))});
@@ -569,6 +589,9 @@ if(matchMedia('(max-width:760px)').matches)$('#bar').classList.add('shut');
 $('#feed').addEventListener('click',e=>{
  const c=e.target.closest('.card');if(!c)return;
  if(e.target.closest('.info a,.info button'))return;
+ if(e.target.closest('.fsb')){const th=c.querySelector('.th');(th.requestFullscreen?th.requestFullscreen({navigationUI:'hide'}):th.webkitRequestFullscreen()).catch?.(()=>{});return}
+ if(e.target.closest('.fsx')){(document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen()).catch?.(()=>{});return}
+ if(e.target.closest('.th video,.th iframe'))return;
  if(e.target.closest('.th')){playIn(c);return}
  if(e.target.closest('.more,.meta')){toggleInfo(c);return}
 });
